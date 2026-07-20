@@ -16,7 +16,18 @@ function Report() {
     );
   }
 
-  const risk = report.risk || "Moderate";
+  const riskText = report.risk || "Moderate";
+
+  // Detect risk level even if Gemini returns long sentences
+  let riskLevel = "Moderate";
+
+  if (riskText.toLowerCase().includes("high")) {
+    riskLevel = "High";
+  } else if (riskText.toLowerCase().includes("low")) {
+    riskLevel = "Low";
+  } else if (riskText.toLowerCase().includes("moderate")) {
+    riskLevel = "Moderate";
+  }
 
   const colors = {
     Low: "bg-green-500",
@@ -53,8 +64,16 @@ function Report() {
               AI Risk Level
             </h2>
 
-            <span className="font-bold text-xl">
-              {risk}
+            <span
+              className={`font-bold text-xl ${
+                riskLevel === "High"
+                  ? "text-red-600"
+                  : riskLevel === "Moderate"
+                  ? "text-yellow-600"
+                  : "text-green-600"
+              }`}
+            >
+              {riskText}
             </span>
 
           </div>
@@ -62,9 +81,9 @@ function Report() {
           <div className="mt-6 bg-gray-200 rounded-full h-6">
 
             <div
-              className={`${colors[risk]} h-6 rounded-full transition-all duration-1000`}
+              className={`${colors[riskLevel]} h-6 rounded-full transition-all duration-1000`}
               style={{
-                width: widths[risk],
+                width: widths[riskLevel],
               }}
             ></div>
 

@@ -8,10 +8,25 @@ const ai = new GoogleGenAI({
 });
 
 export async function generateAIResponse(question) {
-  const response = await ai.models.generateContent({
-    model: "gemini-flash-latest",
-    contents: question,
-  });
+  let retries = 2;
 
-  return response.text;
+  while (retries > 0) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-flash-latest",
+        contents: question,
+      });
+
+      return response.text;
+    } catch (error) {
+      if (error.status === 503 && retries > 1) {
+        console.log("Gemini busy. Retrying...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        retries--;
+        continue;
+      }
+
+      throw error;
+    }
+  }
 }
