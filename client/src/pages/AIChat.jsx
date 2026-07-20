@@ -9,7 +9,7 @@ function AIChat() {
     {
       sender: "ai",
       text:
-        "👋 Hello! I'm NeuroCare AI.\n\nAsk me anything about your child's developmental milestones, growth, motor skills, or general pediatric guidance.",
+        "👋 Hello! I'm NeuroCare AI.\n\nAsk me anything about your child's developmental milestones, growth, nutrition, motor skills, or general pediatric guidance.",
     },
   ]);
 
@@ -36,10 +36,8 @@ function AIChat() {
     setLoading(true);
 
     try {
-      const res = await API.post("/ai/analyze", {
-        answers: {
-          parentQuestion: userQuestion,
-        },
+      const res = await API.post("/ai/chat", {
+        question: userQuestion,
       });
 
       setMessages((prev) => [
@@ -50,11 +48,17 @@ function AIChat() {
         },
       ]);
     } catch (err) {
+      console.log(err);
+
+      const errorText =
+        err.response?.data?.response ||
+        "⚠️ NeuroCare AI is temporarily unavailable. Please try again later.";
+
       setMessages((prev) => [
         ...prev,
         {
           sender: "ai",
-          text: "❌ Unable to contact NeuroCare AI.",
+          text: errorText,
         },
       ]);
     }
@@ -68,7 +72,6 @@ function AIChat() {
       <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden">
 
         <div className="bg-blue-700 text-white p-6">
-
           <h1 className="text-3xl font-bold">
             🧠 NeuroCare AI Assistant
           </h1>
@@ -76,7 +79,6 @@ function AIChat() {
           <p className="mt-2 text-blue-100">
             Ask questions about child development and receive AI-powered educational guidance.
           </p>
-
         </div>
 
         <div className="h-[550px] overflow-y-auto p-6 bg-slate-50">
@@ -109,21 +111,15 @@ function AIChat() {
           ))}
 
           {loading && (
-
             <div className="flex justify-start mb-6">
-
               <div className="bg-white rounded-2xl px-5 py-4 shadow">
-
                 <div className="font-bold mb-2">
                   🧠 NeuroCare AI
                 </div>
 
                 Thinking...
-
               </div>
-
             </div>
-
           )}
 
           <div ref={bottomRef}></div>
