@@ -219,7 +219,11 @@ function Home() {
           </button>
 
         </Link>
-
+        <Link to="/asha">
+          <button className="mt-10 ml-4 bg-blue-900 text-white px-10 py-5 rounded-2xl text-xl font-bold hover:scale-105 duration-300">
+            👩‍⚕️ ASHA Dashboard
+          </button>
+        </Link>
       </section>
 
       {/* Footer */}

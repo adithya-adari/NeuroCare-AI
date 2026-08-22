@@ -1,35 +1,35 @@
 const questions = [
   {
     id: 1,
-    question: "Can your child hold their head up without support?",
+    key: "q1",
   },
   {
     id: 2,
-    question: "Can your child sit without support?",
+    key: "q2",
   },
   {
     id: 3,
-    question: "Can your child crawl?",
+    key: "q3",
   },
   {
     id: 4,
-    question: "Does your child have muscle weakness?",
+    key: "q4",
   },
   {
     id: 5,
-    question: "Does your child have difficulty swallowing?",
+    key: "q5",
   },
   {
     id: 6,
-    question: "Does your child have breathing difficulties?",
+    key: "q6",
   },
   {
     id: 7,
-    question: "Does your child frequently fall while walking?",
+    key: "q7",
   },
   {
     id: 8,
-    question: "Is there a family history of SMA or neuromuscular disorders?",
+    key: "q8",
   },
 ];
 
