@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 
 import aiRoutes from "./routes/aiRoutes.js";
 import motherRoutes from "./routes/motherRoutes.js";
+import childRoutes from "./routes/childRoutes.js";
 
 import connectDB from "./config/db.js";
 
@@ -28,6 +29,8 @@ app.use("/api/ai", aiRoutes);
 
 app.use("/api/mothers", motherRoutes);
 
+app.use("/api/children", childRoutes);
+
 /* -------------------- SERVER -------------------- */
 
 const PORT = process.env.PORT || 5000;
@@ -38,4 +41,3 @@ connectDB().then(() => {
       `Server running on port ${PORT}`
     );
   });
-});
