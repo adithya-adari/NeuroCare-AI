@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import API from "../services/api";
 
 function Children() {
   const navigate = useNavigate();
@@ -10,21 +11,59 @@ function Children() {
   const [assessments, setAssessments] = useState([]);
   const [followUps, setFollowUps] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loadingAssessments, setLoadingAssessments] = useState(false);
 
   useEffect(() => {
     const savedChildren =
       JSON.parse(localStorage.getItem("neurocare_children")) || [];
 
-    const savedAssessments =
-      JSON.parse(localStorage.getItem("neurocare_assessments")) || [];
-
     const savedFollowUps =
       JSON.parse(localStorage.getItem("neurocare_followups")) || [];
 
     setChildren(savedChildren);
-    setAssessments(savedAssessments);
     setFollowUps(savedFollowUps);
+
+    loadAssessments(savedChildren);
   }, []);
+
+  const loadAssessments = async (savedChildren) => {
+    if (!savedChildren || savedChildren.length === 0) {
+      setAssessments([]);
+      return;
+    }
+
+    setLoadingAssessments(true);
+
+    try {
+      const results = await Promise.all(
+        savedChildren.map(async (child) => {
+          try {
+            const response = await API.get(
+              `/ai/assessments/${child.id}`
+            );
+
+            return response.data.assessments || [];
+          } catch (error) {
+            console.log(
+              `Unable to load assessments for child ${child.id}`,
+              error
+            );
+
+            return [];
+          }
+        })
+      );
+
+      const allAssessments = results.flat();
+
+      setAssessments(allAssessments);
+    } catch (error) {
+      console.log("Unable to load assessments:", error);
+      setAssessments([]);
+    } finally {
+      setLoadingAssessments(false);
+    }
+  };
 
   const calculateAge = (dateOfBirth) => {
     if (!dateOfBirth) {
@@ -34,8 +73,13 @@ function Children() {
     const birthDate = new Date(dateOfBirth);
     const today = new Date();
 
-    let years = today.getFullYear() - birthDate.getFullYear();
-    let months = today.getMonth() - birthDate.getMonth();
+    let years =
+      today.getFullYear() -
+      birthDate.getFullYear();
+
+    let months =
+      today.getMonth() -
+      birthDate.getMonth();
 
     if (months < 0) {
       years--;
@@ -54,9 +98,18 @@ function Children() {
   };
 
   const getChildAssessment = (childId) => {
-    return assessments.find(
-      (item) => String(item.childId) === String(childId)
+    const childAssessments = assessments.filter(
+      (item) =>
+        String(item.answers?.childId) ===
+        String(childId)
     );
+
+    if (childAssessments.length === 0) {
+      return null;
+    }
+
+    // Backend returns newest first.
+    return childAssessments[0];
   };
 
   const getChildFollowUp = (childId) => {
@@ -169,7 +222,9 @@ function Children() {
 
               <select
                 value={language}
-                onChange={(e) => changeLanguage(e.target.value)}
+                onChange={(e) =>
+                  changeLanguage(e.target.value)
+                }
                 className="bg-white text-gray-800 rounded-xl px-4 py-3 font-semibold outline-none cursor-pointer"
               >
 
@@ -206,7 +261,9 @@ function Children() {
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) =>
+                setSearchTerm(e.target.value)
+              }
               placeholder={t.searchChildrenPlaceholder}
               className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
@@ -215,11 +272,19 @@ function Children() {
 
         )}
 
+        {/* Loading Assessments */}
+
+        {loadingAssessments && children.length > 0 && (
+
+          <div className="bg-blue-50 text-blue-700 rounded-2xl p-4 mt-6 text-center font-semibold">
+            {t.loading || "Loading assessments..."}
+          </div>
+
+        )}
+
         {/* Main Content */}
 
         {children.length === 0 ? (
-
-          /* No Children */
 
           <div className="bg-white rounded-3xl shadow-xl p-10 mt-8 text-center">
 
@@ -246,8 +311,6 @@ function Children() {
 
         ) : filteredChildren.length === 0 ? (
 
-          /* No Search Results */
-
           <div className="bg-white rounded-3xl shadow-xl p-10 mt-8 text-center">
 
             <div className="text-5xl">
@@ -266,14 +329,15 @@ function Children() {
 
         ) : (
 
-          /* Child Cards */
-
           <div className="grid md:grid-cols-2 gap-6 mt-8">
 
             {filteredChildren.map((child) => {
 
-              const assessment = getChildAssessment(child.id);
-              const followUp = getChildFollowUp(child.id);
+              const assessment =
+                getChildAssessment(child.id);
+
+              const followUp =
+                getChildFollowUp(child.id);
 
               return (
 
@@ -340,10 +404,12 @@ function Children() {
 
                           <span
                             className={`px-3 py-1 rounded-full font-bold ${getRiskStyle(
-                              assessment.risk
+                              assessment.report?.risk
                             )}`}
                           >
-                            {getRiskText(assessment.risk)}
+                            {getRiskText(
+                              assessment.report?.risk
+                            )}
                           </span>
 
                         </div>
@@ -411,7 +477,9 @@ function Children() {
 
                     <button
                       onClick={() =>
-                        navigate(`/assessment?childId=${child.id}`)
+                        navigate(
+                          `/assessment?childId=${child.id}`
+                        )
                       }
                       className="bg-blue-700 hover:bg-blue-800 text-white py-3 rounded-xl font-bold"
                     >
@@ -420,7 +488,9 @@ function Children() {
 
                     <button
                       onClick={() =>
-                        navigate(`/follow-ups?childId=${child.id}`)
+                        navigate(
+                          `/follow-ups?childId=${child.id}`
+                        )
                       }
                       className="bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-xl font-bold"
                     >
@@ -430,6 +500,7 @@ function Children() {
                   </div>
 
                 </div>
+
               );
             })}
 
