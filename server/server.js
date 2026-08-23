@@ -9,6 +9,8 @@ import childRoutes from "./routes/childRoutes.js";
 import childFollowUpRoutes from "./routes/childFollowUpRoutes.js";
 import motherFollowUpRoutes from "./routes/motherFollowUpRoutes.js";
 
+import authRoutes from "./routes/authRoutes.js";
+
 import connectDB from "./config/db.js";
 
 dotenv.config();
@@ -60,6 +62,13 @@ app.use(
   motherFollowUpRoutes
 );
 
+/* ASHA Authentication */
+
+app.use(
+  "/api/auth",
+  authRoutes
+);
+
 /* =====================================================
    SERVER
 ===================================================== */
@@ -68,7 +77,9 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    console.log("Trying to connect to MongoDB...");
+    console.log(
+      "Trying to connect to MongoDB..."
+    );
 
     await connectDB();
 
