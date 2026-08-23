@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import aiRoutes from "./routes/aiRoutes.js";
+import connectDB from "./config/db.js";
 
 dotenv.config();
 
@@ -18,6 +19,8 @@ app.use("/api/ai", aiRoutes);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });

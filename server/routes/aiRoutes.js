@@ -1,5 +1,6 @@
 import express from "express";
 import { generateAIResponse } from "../services/geminiService.js";
+import Assessment from "../models/Assessment.js";
 
 const router = express.Router();
 
@@ -60,7 +61,7 @@ ${question}
 });
 
 
-/* -------------------- ASSESSMENT -------------------- */
+/* -------------------- AI ASSESSMENT -------------------- */
 
 router.post("/analyze", async (req, res) => {
   try {
@@ -186,9 +187,17 @@ FINAL REQUIREMENTS:
       );
     }
 
+    // Save assessment and AI report to MongoDB
+    const savedAssessment = await Assessment.create({
+      answers,
+      language,
+      report: parsed,
+    });
+
     res.json({
       success: true,
       report: parsed,
+      assessmentId: savedAssessment._id,
     });
 
   } catch (error) {
@@ -200,5 +209,59 @@ FINAL REQUIREMENTS:
     });
   }
 });
+
+
+/* -------------------- GET ASSESSMENTS FOR CHILD -------------------- */
+
+router.get("/assessments/:childId", async (req, res) => {
+  try {
+    const { childId } = req.params;
+
+    const assessments = await Assessment.find({
+      "answers.childId": childId,
+    }).sort({
+      createdAt: -1,
+    });
+
+    res.json({
+      success: true,
+      assessments,
+    });
+
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+
+/* -------------------- GET ALL ASSESSMENTS -------------------- */
+
+router.get("/assessments", async (req, res) => {
+  try {
+    const assessments = await Assessment.find()
+      .sort({
+        createdAt: -1,
+      });
+
+    res.json({
+      success: true,
+      assessments,
+    });
+
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 
 export default router;
