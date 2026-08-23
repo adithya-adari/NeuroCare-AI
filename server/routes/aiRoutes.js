@@ -239,6 +239,39 @@ router.get("/assessments/:childId", async (req, res) => {
 });
 
 
+/* -------------------- GET ONE SAVED ASSESSMENT -------------------- */
+
+router.get("/assessment-report/:assessmentId", async (req, res) => {
+  try {
+    const { assessmentId } = req.params;
+
+    const assessment = await Assessment.findById(
+      assessmentId
+    );
+
+    if (!assessment) {
+      return res.status(404).json({
+        success: false,
+        message: "Assessment not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      assessment,
+    });
+
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+
 /* -------------------- GET ALL ASSESSMENTS -------------------- */
 
 router.get("/assessments", async (req, res) => {
