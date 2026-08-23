@@ -407,6 +407,109 @@ childRegisteredSuccessfully:
   downloadReport: "Download Report",
 
   notAvailable: "Not available",
+    // Home Page
+
+  ashaWorkerHealthSupport:
+    "ASHA Worker Health Support",
+
+  empowerAshaWorkers:
+    "Empowering ASHA Workers for Better Maternal & Child Health",
+
+  homeDescription:
+    "NeuroCare AI is a digital health support platform designed to help ASHA workers register mothers and children, conduct AI-assisted child assessments, manage follow-ups, and identify cases that require further medical attention.",
+
+  maternalHealth:
+    "Maternal Health",
+
+  maternalHealthDescription:
+    "Register and monitor mothers",
+
+  childHealth:
+    "Child Health",
+
+  childHealthDescription:
+    "Track registered children",
+
+  followUpTracking:
+    "Follow-up Tracking",
+
+  followUpTrackingDescription:
+    "Manage scheduled follow-ups",
+
+  attentionRequired:
+    "Need Attention",
+
+  attentionRequiredDescription:
+    "Identify cases requiring attention",
+
+  ashaWorkerHealthSupportTitle:
+    "ASHA Worker Health Support",
+
+  ashaWorkerHealthSupportDescription:
+    "NeuroCare AI supports ASHA workers in organizing maternal and child health records, assessments, follow-ups, and cases requiring attention.",
+
+  aiAssistedScreening:
+    "AI-Assisted Screening",
+
+  aiAssistedScreeningDescription:
+    "AI-assisted assessment helps identify cases that may require further attention and professional medical evaluation.",
+
+  followUpManagement:
+    "Follow-up Management",
+
+  followUpManagementDescription:
+    "Keep track of scheduled mother and child follow-ups and identify pending or overdue cases.",
+
+  needAttentionDescriptionHome:
+    "Quickly identify overdue follow-ups and high-risk assessment cases so they can be reviewed and acted upon.",
+
+  healthReports:
+    "Health Reports",
+
+  healthReportsDescription:
+    "Access organized health information and assessment reports to support better follow-up and decision-making.",
+
+  howNeuroCareSupports:
+    "How NeuroCare AI Supports ASHA Workers",
+
+  simpleDigitalWorkflow:
+    "A simple digital workflow for maternal and child health monitoring.",
+
+  register:
+    "Register",
+
+  registerDescription:
+    "Register mothers and children in the system.",
+
+  assess:
+    "Assess",
+
+  assessDescription:
+    "Conduct child developmental assessments when required.",
+
+  monitor:
+    "Monitor",
+
+  monitorDescription:
+    "Track follow-ups and cases requiring attention.",
+
+  referAndFollowUp:
+    "Refer & Follow Up",
+
+  referAndFollowUpDescription:
+    "Support timely medical evaluation and continued follow-up.",
+
+  ashaWorkerHealthSupportCta:
+    "ASHA Worker Health Support",
+
+  ashaCtaDescription:
+    "A digital platform designed to help ASHA workers manage maternal and child health information, assessments, and follow-ups.",
+
+  healthResources:
+    "Health Resources",
+
+  medicalDisclaimerHome:
+    "AI-assisted information is intended to support healthcare workers and does not replace professional medical diagnosis or clinical judgment.",
 };
 
 export default en;

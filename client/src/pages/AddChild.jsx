@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import API from "../services/api";
 
 function AddChild() {
   const navigate = useNavigate();
   const { language, changeLanguage, t } = useLanguage();
+
+  const today = new Date().toISOString().split("T")[0];
 
   const [formData, setFormData] = useState({
     name: "",
@@ -14,7 +17,7 @@ function AddChild() {
     village: "",
   });
 
-  const today = new Date().toISOString().split("T")[0];
+  const [saving, setSaving] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -25,8 +28,10 @@ function AddChild() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    /* -------------------- VALIDATION -------------------- */
 
     // Child name validation
     if (!formData.name.trim()) {
@@ -64,23 +69,49 @@ function AddChild() {
       return;
     }
 
-    const existingChildren =
-      JSON.parse(localStorage.getItem("neurocare_children")) || [];
+    /* -------------------- SAVE TO MONGODB -------------------- */
 
-    const newChild = {
-      id: Date.now(),
-      ...formData,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      setSaving(true);
 
-    localStorage.setItem(
-      "neurocare_children",
-      JSON.stringify([...existingChildren, newChild])
-    );
+      const response = await API.post(
+        "/children",
+        {
+          name: formData.name.trim(),
+          dateOfBirth: formData.dateOfBirth,
+          gender: formData.gender,
+          motherName: formData.motherName.trim(),
+          village: formData.village.trim(),
+        }
+      );
 
-    alert(t.childRegisteredSuccessfully);
+      if (response.data?.success) {
+        alert(
+          t.childRegisteredSuccessfully
+        );
 
-    navigate("/asha");
+        navigate("/asha");
+      } else {
+        alert(
+          response.data?.message ||
+            "Failed to register child."
+        );
+      }
+
+    } catch (error) {
+      console.error(
+        "Child registration failed:",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Failed to register child. Please try again."
+      );
+
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -124,9 +155,12 @@ function AddChild() {
 
               <select
                 value={language}
-                onChange={(e) => changeLanguage(e.target.value)}
+                onChange={(e) =>
+                  changeLanguage(e.target.value)
+                }
                 className="bg-white text-gray-800 rounded-xl px-4 py-3 font-semibold outline-none cursor-pointer"
               >
+
                 <option value="en">
                   🇬🇧 {t.english}
                 </option>
@@ -138,6 +172,7 @@ function AddChild() {
                 <option value="hi">
                   🇮🇳 {t.hindi}
                 </option>
+
               </select>
 
             </div>
@@ -275,14 +310,22 @@ function AddChild() {
 
             <button
               type="submit"
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold text-lg"
+              disabled={saving}
+              className={`flex-1 text-white py-4 rounded-xl font-bold text-lg ${
+                saving
+                  ? "bg-green-400 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700"
+              }`}
             >
-              {t.saveChild}
+              {saving
+                ? "Saving..."
+                : t.saveChild}
             </button>
 
             <button
               type="button"
               onClick={() => navigate("/asha")}
+              disabled={saving}
               className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-4 rounded-xl font-bold text-lg"
             >
               {t.cancel}

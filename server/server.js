@@ -10,6 +10,7 @@ import childFollowUpRoutes from "./routes/childFollowUpRoutes.js";
 import motherFollowUpRoutes from "./routes/motherFollowUpRoutes.js";
 
 import authRoutes from "./routes/authRoutes.js";
+import authMiddleware from "./middleware/authMiddleware.js";
 
 import connectDB from "./config/db.js";
 
@@ -33,25 +34,49 @@ app.get("/", (req, res) => {
 });
 
 /* =====================================================
-   API ROUTES
+   PUBLIC ROUTES
+===================================================== */
+
+/* ASHA Authentication */
+
+app.use(
+  "/api/auth",
+  authRoutes
+);
+
+/* =====================================================
+   PROTECTED ROUTES
 ===================================================== */
 
 /* AI */
 
-app.use("/api/ai", aiRoutes);
+app.use(
+  "/api/ai",
+  authMiddleware,
+  aiRoutes
+);
 
 /* Mothers */
 
-app.use("/api/mothers", motherRoutes);
+app.use(
+  "/api/mothers",
+  authMiddleware,
+  motherRoutes
+);
 
 /* Children */
 
-app.use("/api/children", childRoutes);
+app.use(
+  "/api/children",
+  authMiddleware,
+  childRoutes
+);
 
 /* Child Follow-ups */
 
 app.use(
   "/api/child-followups",
+  authMiddleware,
   childFollowUpRoutes
 );
 
@@ -59,14 +84,8 @@ app.use(
 
 app.use(
   "/api/mother-followups",
+  authMiddleware,
   motherFollowUpRoutes
-);
-
-/* ASHA Authentication */
-
-app.use(
-  "/api/auth",
-  authRoutes
 );
 
 /* =====================================================

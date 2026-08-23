@@ -1,119 +1,238 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import API from "../services/api";
 
 function FollowUpsToday() {
   const navigate = useNavigate();
-  const { language, changeLanguage, t } = useLanguage();
 
-  const [followUps, setFollowUps] = useState([]);
+  const {
+    language,
+    changeLanguage,
+    t,
+  } = useLanguage();
 
-  const loadTodayFollowUps = () => {
-    const childFollowUps =
-      JSON.parse(localStorage.getItem("neurocare_followups")) || [];
+  const [followUps, setFollowUps] =
+    useState([]);
 
-    const motherFollowUps =
-      JSON.parse(
-        localStorage.getItem("neurocare_mother_followups")
-      ) || [];
+  const [loading, setLoading] =
+    useState(true);
 
-    const today = new Date().toISOString().split("T")[0];
+  /* =====================================================
+     LOAD TODAY'S FOLLOW-UPS FROM MONGODB
+  ===================================================== */
 
-    const childToday = childFollowUps
-      .filter(
-        (item) =>
-          item.date === today &&
-          item.status === "Pending"
-      )
-      .map((item) => ({
-        ...item,
-        type: "Child",
-        name: item.childName,
-      }));
+  const loadTodayFollowUps = async () => {
+    try {
+      setLoading(true);
 
-    const motherToday = motherFollowUps
-      .filter(
-        (item) =>
-          item.date === today &&
-          item.status === "Pending"
-      )
-      .map((item) => ({
-        ...item,
-        type: "Mother",
-        name: item.motherName,
-      }));
+      /* -----------------------------------------------
+         GET CHILD FOLLOW-UPS
+      ------------------------------------------------ */
 
-    setFollowUps([
-      ...childToday,
-      ...motherToday,
-    ]);
+      const childResponse =
+        await API.get(
+          "/child-followups"
+        );
+
+      const childFollowUps =
+        childResponse.data?.success
+          ? childResponse.data.followUps || []
+          : [];
+
+      /* -----------------------------------------------
+         GET MOTHER FOLLOW-UPS
+      ------------------------------------------------ */
+
+      const motherResponse =
+        await API.get(
+          "/mother-followups"
+        );
+
+      const motherFollowUps =
+        motherResponse.data?.success
+          ? motherResponse.data.followUps || []
+          : [];
+
+      /* -----------------------------------------------
+         TODAY
+      ------------------------------------------------ */
+
+      const today =
+        new Date()
+          .toISOString()
+          .split("T")[0];
+
+      /* -----------------------------------------------
+         CHILD FOLLOW-UPS FOR TODAY
+      ------------------------------------------------ */
+
+      const childToday =
+        childFollowUps
+          .filter(
+            (item) =>
+              item.date === today &&
+              item.status === "Pending"
+          )
+          .map((item) => ({
+            ...item,
+            type: "Child",
+            name: item.childName,
+          }));
+
+      /* -----------------------------------------------
+         MOTHER FOLLOW-UPS FOR TODAY
+      ------------------------------------------------ */
+
+      const motherToday =
+        motherFollowUps
+          .filter(
+            (item) =>
+              item.date === today &&
+              item.status === "Pending"
+          )
+          .map((item) => ({
+            ...item,
+            type: "Mother",
+            name: item.motherName,
+          }));
+
+      /* -----------------------------------------------
+         COMBINE
+      ------------------------------------------------ */
+
+      setFollowUps([
+        ...childToday,
+        ...motherToday,
+      ]);
+
+    } catch (error) {
+      console.error(
+        "Unable to load today's follow-ups:",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Unable to load today's follow-ups."
+      );
+
+      setFollowUps([]);
+
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadTodayFollowUps();
   }, []);
 
-  const markCompleted = (item) => {
-    if (item.type === "Child") {
-      const childFollowUps =
-        JSON.parse(
-          localStorage.getItem("neurocare_followups")
-        ) || [];
+  /* =====================================================
+     MARK COMPLETED
+  ===================================================== */
 
-      const updatedFollowUps = childFollowUps.map((followUp) =>
-        followUp.id === item.id
-          ? {
-              ...followUp,
-              status: "Completed",
-            }
-          : followUp
+  const markCompleted = async (
+    item
+  ) => {
+    try {
+      let response;
+
+      /* -----------------------------------------------
+         CHILD
+      ------------------------------------------------ */
+
+      if (item.type === "Child") {
+        response =
+          await API.put(
+            `/child-followups/${item._id}/complete`
+          );
+      }
+
+      /* -----------------------------------------------
+         MOTHER
+      ------------------------------------------------ */
+
+      else {
+        response =
+          await API.put(
+            `/mother-followups/${item._id}/complete`
+          );
+      }
+
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message ||
+            "Unable to complete follow-up."
+        );
+      }
+
+      /* -----------------------------------------------
+         REMOVE FROM TODAY'S LIST
+      ------------------------------------------------ */
+
+      setFollowUps(
+        (prev) =>
+          prev.filter(
+            (followUp) =>
+              followUp._id !==
+              item._id
+          )
       );
 
-      localStorage.setItem(
-        "neurocare_followups",
-        JSON.stringify(updatedFollowUps)
-      );
-    } else {
-      const motherFollowUps =
-        JSON.parse(
-          localStorage.getItem("neurocare_mother_followups")
-        ) || [];
-
-      const updatedFollowUps = motherFollowUps.map((followUp) =>
-        followUp.id === item.id
-          ? {
-              ...followUp,
-              status: "Completed",
-            }
-          : followUp
+      alert(
+        t.followUpCompletedSuccessfully
       );
 
-      localStorage.setItem(
-        "neurocare_mother_followups",
-        JSON.stringify(updatedFollowUps)
+    } catch (error) {
+      console.error(
+        "Complete follow-up error:",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Unable to mark follow-up as completed."
       );
     }
-
-    // Remove completed follow-up from today's list
-    setFollowUps((prev) =>
-      prev.filter(
-        (followUp) =>
-          !(
-            followUp.id === item.id &&
-            followUp.type === item.type
-          )
-      )
-    );
-
-    alert(t.followUpCompletedSuccessfully);
   };
+
+  /* =====================================================
+     LOADING
+  ===================================================== */
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center px-6">
+
+        <div className="bg-white rounded-3xl shadow-xl p-10 text-center">
+
+          <div className="text-6xl">
+            📅
+          </div>
+
+          <h2 className="text-2xl font-bold mt-5">
+            Loading today's follow-ups...
+          </h2>
+
+          <p className="text-gray-500 mt-3">
+            Please wait.
+          </p>
+
+        </div>
+
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 px-6 py-10">
 
       <div className="max-w-6xl mx-auto">
 
-        {/* Header */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div className="bg-yellow-600 text-white rounded-3xl p-8 shadow-xl">
 
@@ -122,7 +241,9 @@ function FollowUpsToday() {
             <div>
 
               <button
-                onClick={() => navigate("/asha")}
+                onClick={() =>
+                  navigate("/asha")
+                }
                 className="text-yellow-100 hover:text-white font-semibold"
               >
                 ← {t.back}
@@ -138,7 +259,7 @@ function FollowUpsToday() {
 
             </div>
 
-            {/* Language Selector */}
+            {/* LANGUAGE SELECTOR */}
 
             <div className="bg-white/10 rounded-2xl p-4">
 
@@ -149,7 +270,9 @@ function FollowUpsToday() {
               <select
                 value={language}
                 onChange={(e) =>
-                  changeLanguage(e.target.value)
+                  changeLanguage(
+                    e.target.value
+                  )
                 }
                 className="bg-white text-gray-800 rounded-xl px-4 py-3 font-semibold outline-none cursor-pointer"
               >
@@ -174,7 +297,9 @@ function FollowUpsToday() {
 
         </div>
 
-        {/* Summary */}
+        {/* =================================================
+            SUMMARY
+        ================================================= */}
 
         <div className="bg-white rounded-3xl shadow-xl p-8 mt-8">
 
@@ -208,7 +333,9 @@ function FollowUpsToday() {
 
         </div>
 
-        {/* Follow-up Cards */}
+        {/* =================================================
+            FOLLOW-UP CARDS
+        ================================================= */}
 
         {followUps.length === 0 ? (
 
@@ -232,77 +359,88 @@ function FollowUpsToday() {
 
           <div className="grid md:grid-cols-2 gap-6 mt-8">
 
-            {followUps.map((item) => (
+            {followUps.map(
+              (item) => (
 
-              <div
-                key={`${item.type}-${item.id}`}
-                className="bg-white rounded-3xl shadow-xl p-8"
-              >
+                <div
+                  key={`${item.type}-${item._id}`}
+                  className="bg-white rounded-3xl shadow-xl p-8"
+                >
 
-                <div className="flex items-start justify-between gap-4">
+                  {/* PERSON */}
 
-                  <div>
+                  <div className="flex items-start justify-between gap-4">
 
-                    <div className="text-5xl">
-                      {item.type === "Child"
-                        ? "👶"
-                        : "👩"}
+                    <div>
+
+                      <div className="text-5xl">
+                        {item.type ===
+                        "Child"
+                          ? "👶"
+                          : "👩"}
+                      </div>
+
+                      <h2 className="text-2xl font-bold mt-4">
+                        {item.name}
+                      </h2>
+
+                      <p className="text-gray-500 mt-2">
+                        {item.type ===
+                        "Child"
+                          ? t.childFollowUp
+                          : t.motherFollowUp}
+                      </p>
+
                     </div>
 
-                    <h2 className="text-2xl font-bold mt-4">
-                      {item.name}
-                    </h2>
+                    <span className="bg-yellow-100 text-yellow-700 px-3 py-2 rounded-full font-semibold">
+                      {t.pending}
+                    </span>
 
-                    <p className="text-gray-500 mt-2">
-                      {item.type === "Child"
-                        ? t.childFollowUp
-                        : t.motherFollowUp}
+                  </div>
+
+                  {/* DATE */}
+
+                  <div className="bg-yellow-50 rounded-2xl p-5 mt-6">
+
+                    <p className="text-yellow-700 font-bold">
+                      📅 {t.scheduledToday}
                     </p>
 
                   </div>
 
-                  <span className="bg-yellow-100 text-yellow-700 px-3 py-2 rounded-full font-semibold">
-                    {t.pending}
-                  </span>
+                  {/* NOTE */}
+
+                  <div className="bg-slate-50 rounded-2xl p-5 mt-4">
+
+                    <p className="font-semibold text-gray-700">
+                      📝 {t.followUpNote}
+                    </p>
+
+                    <p className="text-gray-600 mt-2">
+                      {item.note ||
+                        "No note available."}
+                    </p>
+
+                  </div>
+
+                  {/* COMPLETE */}
+
+                  <button
+                    onClick={() =>
+                      markCompleted(
+                        item
+                      )
+                    }
+                    className="w-full mt-5 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold"
+                  >
+                    ✅ {t.markCompleted}
+                  </button>
 
                 </div>
 
-                {/* Date */}
-
-                <div className="bg-yellow-50 rounded-2xl p-5 mt-6">
-
-                  <p className="text-yellow-700 font-bold">
-                    📅 {t.scheduledToday}
-                  </p>
-
-                </div>
-
-                {/* Note */}
-
-                <div className="bg-slate-50 rounded-2xl p-5 mt-4">
-
-                  <p className="font-semibold text-gray-700">
-                    📝 {t.followUpNote}
-                  </p>
-
-                  <p className="text-gray-600 mt-2">
-                    {item.note}
-                  </p>
-
-                </div>
-
-                {/* Complete Button */}
-
-                <button
-                  onClick={() => markCompleted(item)}
-                  className="w-full mt-5 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold"
-                >
-                  ✅ {t.markCompleted}
-                </button>
-
-              </div>
-
-            ))}
+              )
+            )}
 
           </div>
 

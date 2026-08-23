@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import API from "../services/api";
 
 function Report() {
   const navigate = useNavigate();
@@ -7,15 +9,158 @@ function Report() {
 
   const { t } = useLanguage();
 
-  const report = location.state?.report;
-  const child = location.state?.child;
+  const [report, setReport] = useState(
+    location.state?.report || null
+  );
+
+  const [child, setChild] = useState(
+    location.state?.child || null
+  );
+
+  const [loading, setLoading] = useState(
+    !location.state?.report
+  );
+
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadSavedReport = async () => {
+      const params = new URLSearchParams(
+        location.search
+      );
+
+      const assessmentId =
+        params.get("assessmentId");
+
+      const childId =
+        params.get("childId");
+
+      // If report was already passed from Assessment.jsx,
+      // no MongoDB request is needed.
+      if (location.state?.report) {
+
+        if (!location.state?.child && childId) {
+          const savedChildren =
+            JSON.parse(
+              localStorage.getItem(
+                "neurocare_children"
+              )
+            ) || [];
+
+          const selectedChild =
+            savedChildren.find(
+              (item) =>
+                String(item.id) ===
+                String(childId)
+            );
+
+          if (selectedChild) {
+            setChild(selectedChild);
+          }
+        }
+
+        setLoading(false);
+        return;
+      }
+
+      // No assessment ID means there is no saved report to load.
+      if (!assessmentId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await API.get(
+          `/ai/assessment-report/${assessmentId}`
+        );
+
+        const savedAssessment =
+          response.data.assessment;
+
+        if (!savedAssessment) {
+          throw new Error(
+            "Assessment not found"
+          );
+        }
+
+        setReport(
+          savedAssessment.report
+        );
+
+        // Find child information from localStorage
+        const savedChildren =
+          JSON.parse(
+            localStorage.getItem(
+              "neurocare_children"
+            )
+          ) || [];
+
+        const savedChild =
+          savedChildren.find(
+            (item) =>
+              String(item.id) ===
+              String(
+                savedAssessment.answers?.childId
+              )
+          );
+
+        if (savedChild) {
+          setChild(savedChild);
+        }
+
+      } catch (err) {
+        console.log(
+          "Unable to load saved report:",
+          err
+        );
+
+        setError(
+          "Unable to load the saved assessment report."
+        );
+
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSavedReport();
+  }, [location.search, location.state]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex justify-center items-center p-6">
+
+        <div className="bg-white rounded-3xl shadow-xl p-10 text-center">
+
+          <div className="text-6xl">
+            📋
+          </div>
+
+          <h1 className="text-2xl font-bold mt-5 text-blue-700">
+            {t.loading || "Loading report..."}
+          </h1>
+
+          <p className="text-gray-500 mt-3">
+            Please wait while the saved assessment is loaded.
+          </p>
+
+        </div>
+
+      </div>
+    );
+  }
 
   if (!report) {
     return (
       <div className="min-h-screen flex justify-center items-center p-6">
+
         <div className="text-center">
+
           <h1 className="text-3xl font-bold">
-            {t.noReportFound}
+            {error || t.noReportFound}
           </h1>
 
           <button
@@ -24,7 +169,9 @@ function Report() {
           >
             {t.backToChildren}
           </button>
+
         </div>
+
       </div>
     );
   }
@@ -33,11 +180,23 @@ function Report() {
 
   let riskLevel = "Moderate";
 
-  if (riskText.toLowerCase().includes("high")) {
+  if (
+    riskText
+      .toLowerCase()
+      .includes("high")
+  ) {
     riskLevel = "High";
-  } else if (riskText.toLowerCase().includes("low")) {
+  } else if (
+    riskText
+      .toLowerCase()
+      .includes("low")
+  ) {
     riskLevel = "Low";
-  } else if (riskText.toLowerCase().includes("moderate")) {
+  } else if (
+    riskText
+      .toLowerCase()
+      .includes("moderate")
+  ) {
     riskLevel = "Moderate";
   }
 
@@ -73,8 +232,13 @@ function Report() {
     const birthDate = new Date(dateOfBirth);
     const today = new Date();
 
-    let years = today.getFullYear() - birthDate.getFullYear();
-    let months = today.getMonth() - birthDate.getMonth();
+    let years =
+      today.getFullYear() -
+      birthDate.getFullYear();
+
+    let months =
+      today.getMonth() -
+      birthDate.getMonth();
 
     if (months < 0) {
       years--;
@@ -102,7 +266,9 @@ function Report() {
         <div className="bg-blue-700 text-white rounded-3xl shadow-xl p-8">
 
           <button
-            onClick={() => navigate("/children")}
+            onClick={() =>
+              navigate("/children")
+            }
             className="text-blue-100 hover:text-white font-semibold"
           >
             ← {t.backToChildren}
@@ -121,6 +287,7 @@ function Report() {
         {/* Child Information */}
 
         {child && (
+
           <div className="bg-white rounded-3xl shadow-xl p-8 mt-8">
 
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -139,7 +306,9 @@ function Report() {
 
                   <p>
                     <strong>{t.age}:</strong>{" "}
-                    {calculateAge(child.dateOfBirth)}
+                    {calculateAge(
+                      child.dateOfBirth
+                    )}
                   </p>
 
                   <p>
@@ -148,7 +317,9 @@ function Report() {
                   </p>
 
                   <p>
-                    <strong>{t.motherGuardianName}:</strong>{" "}
+                    <strong>
+                      {t.motherGuardianName}:
+                    </strong>{" "}
                     {child.motherName}
                   </p>
 
@@ -176,6 +347,7 @@ function Report() {
             </div>
 
           </div>
+
         )}
 
         {/* Risk Level */}
@@ -222,7 +394,8 @@ function Report() {
             </h2>
 
             <p className="mt-6 leading-8 text-gray-700">
-              {report.summary || t.notAvailable}
+              {report.summary ||
+                t.notAvailable}
             </p>
 
           </div>
@@ -236,7 +409,8 @@ function Report() {
             </h2>
 
             <p className="mt-6 leading-8 text-gray-700">
-              {report.concerns || t.notAvailable}
+              {report.concerns ||
+                t.notAvailable}
             </p>
 
           </div>
@@ -250,7 +424,8 @@ function Report() {
             </h2>
 
             <p className="mt-6 leading-8 text-gray-700">
-              {report.homeCare || t.notAvailable}
+              {report.homeCare ||
+                t.notAvailable}
             </p>
 
           </div>
@@ -264,7 +439,8 @@ function Report() {
             </h2>
 
             <p className="mt-6 leading-8 text-gray-700">
-              {report.doctor || t.notAvailable}
+              {report.doctor ||
+                t.notAvailable}
             </p>
 
           </div>
@@ -280,7 +456,8 @@ function Report() {
           </h2>
 
           <p className="mt-5 leading-8 text-gray-700">
-            {report.disclaimer || t.screeningDisclaimer}
+            {report.disclaimer ||
+              t.screeningDisclaimer}
           </p>
 
         </div>
@@ -290,21 +467,27 @@ function Report() {
         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
 
           <button
-            onClick={() => window.print()}
+            onClick={() =>
+              window.print()
+            }
             className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl font-bold"
           >
             📄 {t.downloadReport}
           </button>
 
           <button
-            onClick={() => navigate("/children")}
+            onClick={() =>
+              navigate("/children")
+            }
             className="bg-blue-700 hover:bg-blue-800 text-white px-8 py-4 rounded-xl font-bold"
           >
             👶 {t.backToChildren}
           </button>
 
           <button
-            onClick={() => navigate("/asha")}
+            onClick={() =>
+              navigate("/asha")
+            }
             className="bg-slate-700 hover:bg-slate-800 text-white px-8 py-4 rounded-xl font-bold"
           >
             🏠 {t.ashaDashboard}

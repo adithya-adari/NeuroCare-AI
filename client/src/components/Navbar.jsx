@@ -6,6 +6,8 @@ function Navbar() {
 
       <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
 
+        {/* Logo */}
+
         <Link
           to="/"
           className="text-3xl font-black text-blue-700"
@@ -13,51 +15,14 @@ function Navbar() {
           🧠 NeuroCare AI
         </Link>
 
-        <div className="flex items-center gap-8 font-semibold">
+        {/* ASHA Login */}
 
-          <Link
-            to="/"
-            className="hover:text-blue-700 duration-300"
-          >
-            Home
-          </Link>
-
-          <Link
-            to="/assessment"
-            className="hover:text-blue-700 duration-300"
-          >
-            Assessment
-          </Link>
-
-          <Link
-            to="/learn"
-            className="hover:text-blue-700 duration-300"
-          >
-            Learn
-          </Link>
-
-          <Link
-            to="/chat"
-            className="hover:text-blue-700 duration-300"
-          >
-            AI Chat
-          </Link>
-
-          <Link
-            to="/about"
-            className="hover:text-blue-700 duration-300"
-          >
-            About
-          </Link>
-
-          <Link
-            to="/assessment"
-            className="bg-blue-700 text-white px-5 py-2 rounded-xl hover:bg-blue-800 duration-300"
-          >
-            Get Started
-          </Link>
-
-        </div>
+        <Link
+          to="/login"
+          className="bg-blue-700 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-800 hover:scale-105 duration-300 shadow-lg"
+        >
+          👩‍⚕️ ASHA Worker Login
+        </Link>
 
       </div>
 

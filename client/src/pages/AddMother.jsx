@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import API from "../services/api";
 
 function AddMother() {
   const navigate = useNavigate();
@@ -17,6 +18,8 @@ function AddMother() {
     expectedDeliveryDate: "",
   });
 
+  const [saving, setSaving] = useState(false);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -26,27 +29,29 @@ function AddMother() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Mother name validation
+    /* -------------------- VALIDATION -------------------- */
+
     if (!formData.name.trim()) {
       alert(t.enterMotherName);
       return;
     }
 
-    // Age validation
     if (!formData.age) {
       alert(t.enterMotherAge);
       return;
     }
 
-    if (Number(formData.age) < 18 || Number(formData.age) > 60) {
+    if (
+      Number(formData.age) < 18 ||
+      Number(formData.age) > 60
+    ) {
       alert(t.motherAgeRange);
       return;
     }
 
-    // Mobile validation
     if (!formData.mobile) {
       alert(t.enterMobileNumber);
       return;
@@ -57,13 +62,11 @@ function AddMother() {
       return;
     }
 
-    // Village validation
     if (!formData.village.trim()) {
       alert(t.enterVillage);
       return;
     }
 
-    // Expected delivery date validation
     if (
       formData.pregnancyStatus === "Pregnant" &&
       !formData.expectedDeliveryDate
@@ -80,25 +83,52 @@ function AddMother() {
       return;
     }
 
-    // Temporary demo storage.
-    // We will connect this to MongoDB later.
-    const existingMothers =
-      JSON.parse(localStorage.getItem("neurocare_mothers")) || [];
+    /* -------------------- SAVE TO MONGODB -------------------- */
 
-    const newMother = {
-      id: Date.now(),
-      ...formData,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      setSaving(true);
 
-    localStorage.setItem(
-      "neurocare_mothers",
-      JSON.stringify([...existingMothers, newMother])
-    );
+      const response = await API.post(
+        "/mothers",
+        {
+          name: formData.name.trim(),
+          age: Number(formData.age),
+          mobile: formData.mobile,
+          village: formData.village.trim(),
+          pregnancyStatus:
+            formData.pregnancyStatus,
+          expectedDeliveryDate:
+            formData.expectedDeliveryDate,
+        }
+      );
 
-    alert(t.motherRegisteredSuccessfully);
+      if (response.data?.success) {
+        alert(
+          t.motherRegisteredSuccessfully
+        );
 
-    navigate("/asha");
+        navigate("/asha");
+      } else {
+        alert(
+          response.data?.message ||
+            "Failed to register mother."
+        );
+      }
+
+    } catch (error) {
+      console.error(
+        "Mother registration failed:",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Failed to register mother. Please try again."
+      );
+
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -142,7 +172,11 @@ function AddMother() {
 
               <select
                 value={language}
-                onChange={(e) => changeLanguage(e.target.value)}
+                onChange={(e) =>
+                  changeLanguage(
+                    e.target.value
+                  )
+                }
                 className="bg-white text-gray-800 rounded-xl px-4 py-3 font-semibold outline-none cursor-pointer"
               >
 
@@ -227,7 +261,12 @@ function AddMother() {
               name="mobile"
               value={formData.mobile}
               onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
+
+                const value =
+                  e.target.value.replace(
+                    /\D/g,
+                    ""
+                  );
 
                 if (value.length <= 10) {
                   setFormData((prev) => ({
@@ -235,8 +274,11 @@ function AddMother() {
                     mobile: value,
                   }));
                 }
+
               }}
-              placeholder={t.mobilePlaceholder}
+              placeholder={
+                t.mobilePlaceholder
+              }
               maxLength="10"
               inputMode="numeric"
               className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -296,7 +338,8 @@ function AddMother() {
 
           {/* Expected Delivery Date */}
 
-          {formData.pregnancyStatus === "Pregnant" && (
+          {formData.pregnancyStatus ===
+            "Pregnant" && (
 
             <div className="mt-6">
 
@@ -307,7 +350,9 @@ function AddMother() {
               <input
                 type="date"
                 name="expectedDeliveryDate"
-                value={formData.expectedDeliveryDate}
+                value={
+                  formData.expectedDeliveryDate
+                }
                 onChange={handleChange}
                 min={today}
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -327,14 +372,22 @@ function AddMother() {
 
             <button
               type="submit"
-              className="flex-1 bg-blue-700 hover:bg-blue-800 text-white py-4 rounded-xl font-bold text-lg"
+              disabled={saving}
+              className={`flex-1 text-white py-4 rounded-xl font-bold text-lg ${
+                saving
+                  ? "bg-blue-400 cursor-not-allowed"
+                  : "bg-blue-700 hover:bg-blue-800"
+              }`}
             >
-              {t.saveMother}
+              {saving
+                ? "Saving..."
+                : t.saveMother}
             </button>
 
             <button
               type="button"
               onClick={() => navigate("/asha")}
+              disabled={saving}
               className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-4 rounded-xl font-bold text-lg"
             >
               {t.cancel}

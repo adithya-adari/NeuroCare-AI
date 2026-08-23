@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import API from "../services/api";
@@ -9,33 +9,119 @@ function Assessment() {
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(false);
 
+  const [selectedChild, setSelectedChild] =
+    useState(null);
+
+  const [loadingChild, setLoadingChild] =
+    useState(true);
+
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { language, changeLanguage, t } = useLanguage();
+  const {
+    language,
+    changeLanguage,
+    t,
+  } = useLanguage();
 
-  const childId = new URLSearchParams(location.search).get("childId");
+  /* =====================================================
+     GET CHILD ID FROM URL
+  ===================================================== */
 
-  const children =
-    JSON.parse(localStorage.getItem("neurocare_children")) || [];
+  const childId =
+    new URLSearchParams(
+      location.search
+    ).get("childId");
 
-  const selectedChild = children.find(
-    (child) => String(child.id) === String(childId)
-  );
+  /* =====================================================
+     LOAD CHILD FROM MONGODB
+  ===================================================== */
 
-  const calculateAge = (dateOfBirth) => {
+  useEffect(() => {
+    loadChild();
+  }, [childId]);
+
+  const loadChild = async () => {
+    try {
+      setLoadingChild(true);
+
+      if (!childId) {
+        setSelectedChild(null);
+        return;
+      }
+
+      /*
+       * Children are now stored in MongoDB.
+       *
+       * MongoDB uses _id.
+       *
+       * The Children page sends:
+       *
+       * /assessment?childId=<MongoDB _id>
+       *
+       * So we load the current children
+       * from MongoDB and find the matching _id.
+       */
+
+      const response =
+        await API.get("/children");
+
+      if (!response.data?.success) {
+        setSelectedChild(null);
+        return;
+      }
+
+      const mongoChildren =
+        response.data.children || [];
+
+      const child =
+        mongoChildren.find(
+          (item) =>
+            String(item._id) ===
+            String(childId)
+        );
+
+      setSelectedChild(
+        child || null
+      );
+
+    } catch (error) {
+      console.error(
+        "Unable to load selected child:",
+        error
+      );
+
+      setSelectedChild(null);
+
+    } finally {
+      setLoadingChild(false);
+    }
+  };
+
+  /* =====================================================
+     CALCULATE AGE
+  ===================================================== */
+
+  const calculateAge = (
+    dateOfBirth
+  ) => {
     if (!dateOfBirth) {
       return t.ageUnavailable;
     }
 
-    const birthDate = new Date(dateOfBirth);
-    const today = new Date();
+    const birthDate =
+      new Date(dateOfBirth);
+
+    const today =
+      new Date();
 
     let years =
-      today.getFullYear() - birthDate.getFullYear();
+      today.getFullYear() -
+      birthDate.getFullYear();
 
     let months =
-      today.getMonth() - birthDate.getMonth();
+      today.getMonth() -
+      birthDate.getMonth();
 
     if (months < 0) {
       years--;
@@ -44,100 +130,160 @@ function Assessment() {
 
     if (years > 0) {
       return `${years} ${
-        years === 1 ? t.year : t.years
+        years === 1
+          ? t.year
+          : t.years
       }`;
     }
 
     return `${months} ${
-      months === 1 ? t.month : t.months
+      months === 1
+        ? t.month
+        : t.months
     }`;
   };
 
-  const handleAnswer = async (answer) => {
+  /* =====================================================
+     HANDLE ANSWER
+  ===================================================== */
+
+  const handleAnswer = async (
+    answer
+  ) => {
     const updated = {
       ...answers,
-      [questions[step].id]: answer,
+      [questions[step].id]:
+        answer,
     };
 
     setAnswers(updated);
 
-    if (step < questions.length - 1) {
-      setStep(step + 1);
+    /* -----------------------------------------------
+       NEXT QUESTION
+    ------------------------------------------------ */
+
+    if (
+      step <
+      questions.length - 1
+    ) {
+      setStep(
+        step + 1
+      );
       return;
     }
+
+    /* -----------------------------------------------
+       FINAL QUESTION
+    ------------------------------------------------ */
 
     setLoading(true);
 
     try {
       /*
-       * Send the selected language to the AI backend.
+       * Send assessment to AI backend.
        *
-       * en = English
-       * te = Telugu
-       * hi = Hindi
+       * The backend saves the assessment
+       * in MongoDB.
        */
-      const res = await API.post("/ai/analyze", {
-        answers: {
-          ...updated,
-          childName: selectedChild?.name || "Child",
-          childId: childId || null,
-        },
-        language,
-      });
 
-      const report = res.data.report;
+      const res =
+        await API.post(
+          "/ai/analyze",
+          {
+            answers: {
+              ...updated,
 
-      // Save the latest AI assessment for this child
-      const savedAssessments =
-        JSON.parse(
-          localStorage.getItem("neurocare_assessments")
-        ) || [];
+              childName:
+                selectedChild?.name ||
+                "Child",
 
-      const newAssessment = {
-        id: Date.now(),
-        childId: childId || null,
-        childName: selectedChild?.name || "Child",
-        risk: report.risk || "Moderate",
-        report,
-        answers: updated,
-        language: language,
-        assessedAt: new Date().toISOString(),
-      };
+              childId:
+                childId || null,
+            },
 
-      const updatedAssessments = [
-        ...savedAssessments.filter(
-          (item) =>
-            String(item.childId) !== String(childId)
-        ),
-        newAssessment,
-      ];
+            language,
+          }
+        );
 
-      localStorage.setItem(
-        "neurocare_assessments",
-        JSON.stringify(updatedAssessments)
+      const report =
+        res.data.report;
+
+      /*
+       * IMPORTANT:
+       *
+       * We DO NOT save the assessment
+       * into localStorage anymore.
+       *
+       * MongoDB is now the source of truth.
+       */
+
+      navigate(
+        "/report",
+        {
+          state: {
+            report,
+
+            child:
+              selectedChild,
+
+            answers:
+              updated,
+
+            language,
+          },
+        }
       );
 
-      navigate("/report", {
-        state: {
-          report,
-          child: selectedChild,
-          answers: updated,
-          language: language,
-        },
-      });
     } catch (error) {
-      console.log(error);
+      console.error(
+        "Unable to generate report:",
+        error
+      );
 
       alert(
-        t.unableToGenerateReport ||
+        error.response?.data?.message ||
+          t.unableToGenerateReport ||
           "Unable to generate AI report."
       );
+
     } finally {
       setLoading(false);
     }
   };
 
-  // If child was not found
+  /* =====================================================
+     LOADING CHILD
+  ===================================================== */
+
+  if (loadingChild) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+
+        <div className="bg-white rounded-3xl shadow-xl p-10 text-center max-w-lg">
+
+          <div className="text-6xl">
+            👶
+          </div>
+
+          <h1 className="text-3xl font-bold mt-5">
+            Loading Child...
+          </h1>
+
+          <p className="text-gray-500 mt-3">
+            Loading the selected child
+            from the database.
+          </p>
+
+        </div>
+
+      </div>
+    );
+  }
+
+  /* =====================================================
+     CHILD NOT FOUND
+  ===================================================== */
+
   if (!selectedChild) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
@@ -149,19 +295,24 @@ function Assessment() {
           </div>
 
           <h1 className="text-3xl font-bold mt-5">
-            {t.childNotFound || "Child Not Found"}
+            {t.childNotFound ||
+              "Child Not Found"}
           </h1>
 
           <p className="text-gray-500 mt-3">
             {t.childNotFoundDescription ||
-              "The selected child could not be found."}
+              "The selected child could not be found in the database."}
           </p>
 
           <button
-            onClick={() => navigate("/children")}
+            onClick={() =>
+              navigate("/children")
+            }
             className="mt-6 bg-blue-700 hover:bg-blue-800 text-white px-8 py-4 rounded-xl font-bold"
           >
-            👶 {t.backToChildren || "Back to Children"}
+            👶{" "}
+            {t.backToChildren ||
+              "Back to Children"}
           </button>
 
         </div>
@@ -170,7 +321,10 @@ function Assessment() {
     );
   }
 
-  // AI loading screen
+  /* =====================================================
+     AI LOADING SCREEN
+  ===================================================== */
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-cyan-100 flex justify-center items-center p-6">
@@ -235,12 +389,18 @@ function Assessment() {
     );
   }
 
+  /* =====================================================
+     MAIN ASSESSMENT
+  ===================================================== */
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-100 p-6">
 
       <div className="max-w-4xl mx-auto">
 
-        {/* Header */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div className="bg-blue-700 text-white rounded-3xl shadow-2xl p-8">
 
@@ -249,14 +409,18 @@ function Assessment() {
             <div>
 
               <button
-                onClick={() => navigate("/children")}
+                onClick={() =>
+                  navigate("/children")
+                }
                 className="text-blue-100 hover:text-white font-semibold"
               >
                 ← {t.back}
               </button>
 
               <h1 className="text-4xl md:text-5xl font-black mt-5">
-                🧠 {t.assessment || "Assessment"}
+                🧠{" "}
+                {t.assessment ||
+                  "Assessment"}
               </h1>
 
               <p className="mt-3 text-blue-100">
@@ -266,7 +430,7 @@ function Assessment() {
 
             </div>
 
-            {/* Language Selector */}
+            {/* LANGUAGE */}
 
             <div className="bg-white/10 rounded-2xl p-4">
 
@@ -277,7 +441,9 @@ function Assessment() {
               <select
                 value={language}
                 onChange={(e) =>
-                  changeLanguage(e.target.value)
+                  changeLanguage(
+                    e.target.value
+                  )
                 }
                 className="bg-white text-gray-800 rounded-xl px-4 py-3 font-semibold outline-none cursor-pointer"
               >
@@ -302,7 +468,9 @@ function Assessment() {
 
         </div>
 
-        {/* Child Information */}
+        {/* =================================================
+            CHILD INFORMATION
+        ================================================= */}
 
         <div className="bg-white rounded-3xl shadow-xl p-8 mt-8">
 
@@ -316,20 +484,25 @@ function Assessment() {
               </p>
 
               <h2 className="text-3xl font-black text-blue-700 mt-2">
-                👶 {selectedChild.name}
+                👶{" "}
+                {selectedChild.name}
               </h2>
 
               <div className="mt-4 grid sm:grid-cols-2 gap-x-10 gap-y-2 text-gray-600">
 
                 <p>
-                  <strong>{t.age}:</strong>{" "}
+                  <strong>
+                    {t.age}:
+                  </strong>{" "}
                   {calculateAge(
                     selectedChild.dateOfBirth
                   )}
                 </p>
 
                 <p>
-                  <strong>{t.gender}:</strong>{" "}
+                  <strong>
+                    {t.gender}:
+                  </strong>{" "}
                   {selectedChild.gender}
                 </p>
 
@@ -341,7 +514,9 @@ function Assessment() {
                 </p>
 
                 <p>
-                  <strong>{t.village}:</strong>{" "}
+                  <strong>
+                    {t.village}:
+                  </strong>{" "}
                   {selectedChild.village}
                 </p>
 
@@ -367,7 +542,9 @@ function Assessment() {
 
         </div>
 
-        {/* Progress */}
+        {/* =================================================
+            PROGRESS
+        ================================================= */}
 
         <div className="bg-white rounded-3xl shadow-xl p-8 mt-8">
 
@@ -375,7 +552,8 @@ function Assessment() {
 
             <p className="text-gray-500 font-medium">
 
-              {t.question || "Question"}{" "}
+              {t.question ||
+                "Question"}{" "}
 
               <span className="font-bold text-blue-700">
                 {step + 1}
@@ -390,10 +568,14 @@ function Assessment() {
             </p>
 
             <p className="font-bold text-blue-700">
+
               {Math.round(
-                ((step + 1) / questions.length) * 100
+                ((step + 1) /
+                  questions.length) *
+                  100
               )}
               %
+
             </p>
 
           </div>
@@ -404,7 +586,9 @@ function Assessment() {
               className="bg-blue-700 h-4 rounded-full transition-all duration-500"
               style={{
                 width: `${
-                  ((step + 1) / questions.length) * 100
+                  ((step + 1) /
+                    questions.length) *
+                  100
                 }%`,
               }}
             ></div>
@@ -413,7 +597,9 @@ function Assessment() {
 
         </div>
 
-        {/* Question */}
+        {/* =================================================
+            QUESTION
+        ================================================= */}
 
         <div className="bg-white rounded-3xl shadow-2xl p-10 mt-8">
 
@@ -423,20 +609,26 @@ function Assessment() {
           </p>
 
           <h2 className="text-3xl md:text-4xl font-bold text-center leading-relaxed text-gray-800 mt-6">
-            {t[questions[step].key]}
+            {t[
+              questions[step].key
+            ]}
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-12">
 
             <button
-              onClick={() => handleAnswer("Yes")}
+              onClick={() =>
+                handleAnswer("Yes")
+              }
               className="bg-green-600 hover:bg-green-700 text-white py-6 rounded-2xl text-2xl font-bold duration-300 shadow-lg hover:scale-105"
             >
               ✅ {t.yes}
             </button>
 
             <button
-              onClick={() => handleAnswer("No")}
+              onClick={() =>
+                handleAnswer("No")
+              }
               className="bg-red-600 hover:bg-red-700 text-white py-6 rounded-2xl text-2xl font-bold duration-300 shadow-lg hover:scale-105"
             >
               ❌ {t.no}
@@ -446,7 +638,9 @@ function Assessment() {
 
         </div>
 
-        {/* Disclaimer */}
+        {/* =================================================
+            DISCLAIMER
+        ================================================= */}
 
         <div className="bg-yellow-50 border-l-8 border-yellow-500 rounded-3xl p-6 mt-8">
 

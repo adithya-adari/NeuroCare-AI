@@ -1,136 +1,330 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import API from "../services/api";
 
 function FollowUps() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { language, changeLanguage, t } = useLanguage();
 
-  const childIdFromUrl = searchParams.get("childId");
+  const {
+    language,
+    changeLanguage,
+    t,
+  } = useLanguage();
 
-  const [children, setChildren] = useState([]);
-  const [followUps, setFollowUps] = useState([]);
+  const childIdFromUrl =
+    searchParams.get("childId");
 
-  const [selectedChild, setSelectedChild] = useState("");
-  const [date, setDate] = useState("");
-  const [note, setNote] = useState("");
+  const [children, setChildren] =
+    useState([]);
 
-  const today = new Date().toISOString().split("T")[0];
+  const [followUps, setFollowUps] =
+    useState([]);
+
+  const [selectedChild, setSelectedChild] =
+    useState("");
+
+  const [date, setDate] =
+    useState("");
+
+  const [note, setNote] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const today =
+    new Date()
+      .toISOString()
+      .split("T")[0];
+
+  /* =====================================================
+     LOAD CHILDREN + FOLLOW-UPS FROM MONGODB
+  ===================================================== */
 
   useEffect(() => {
-    const savedChildren =
-      JSON.parse(localStorage.getItem("neurocare_children")) || [];
-
-    const savedFollowUps =
-      JSON.parse(localStorage.getItem("neurocare_followups")) || [];
-
-    setChildren(savedChildren);
-    setFollowUps(savedFollowUps);
-
-    // Automatically select child when opened from Children page
-    if (childIdFromUrl) {
-      const childExists = savedChildren.some(
-        (child) => String(child.id) === String(childIdFromUrl)
-      );
-
-      if (childExists) {
-        setSelectedChild(childIdFromUrl);
-      }
-    }
+    loadData();
   }, [childIdFromUrl]);
 
-  // Schedule Follow-up
-  const handleSubmit = (e) => {
+  const loadData = async () => {
+    try {
+      setLoading(true);
+
+      /* -----------------------------------------------
+         GET CHILDREN
+      ------------------------------------------------ */
+
+      const childResponse =
+        await API.get("/children");
+
+      const savedChildren =
+        childResponse.data?.success
+          ? childResponse.data.children || []
+          : [];
+
+      setChildren(savedChildren);
+
+      /* -----------------------------------------------
+         GET CHILD FOLLOW-UPS
+      ------------------------------------------------ */
+
+      const followUpResponse =
+        await API.get(
+          "/child-followups"
+        );
+
+      const savedFollowUps =
+        followUpResponse.data?.success
+          ? followUpResponse.data.followUps || []
+          : [];
+
+      setFollowUps(savedFollowUps);
+
+      /* -----------------------------------------------
+         SELECT CHILD FROM URL
+      ------------------------------------------------ */
+
+      if (childIdFromUrl) {
+        const childExists =
+          savedChildren.some(
+            (child) =>
+              String(child._id) ===
+              String(childIdFromUrl)
+          );
+
+        if (childExists) {
+          setSelectedChild(
+            childIdFromUrl
+          );
+        }
+      }
+
+    } catch (error) {
+      console.error(
+        "Unable to load follow-up data:",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Unable to load follow-ups. Please try again."
+      );
+
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* =====================================================
+     SCHEDULE FOLLOW-UP
+  ===================================================== */
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Check child
+    /* -----------------------------------------------
+       CHECK CHILD
+    ------------------------------------------------ */
+
     if (!selectedChild) {
       alert(t.selectChildAndDate);
       return;
     }
 
-    // Check date
+    /* -----------------------------------------------
+       CHECK DATE
+    ------------------------------------------------ */
+
     if (!date) {
       alert(t.selectChildAndDate);
       return;
     }
 
-    // Prevent past date
+    /* -----------------------------------------------
+       PREVENT PAST DATE
+    ------------------------------------------------ */
+
     if (date < today) {
       alert(t.followUpDatePast);
       return;
     }
 
-    // Find selected child
-    const child = children.find(
-      (item) => String(item.id) === String(selectedChild)
-    );
+    /* -----------------------------------------------
+       FIND SELECTED CHILD
+    ------------------------------------------------ */
+
+    const child =
+      children.find(
+        (item) =>
+          String(item._id) ===
+          String(selectedChild)
+      );
 
     if (!child) {
       alert(t.selectedChildNotFound);
       return;
     }
 
-    // Create new follow-up
-    const newFollowUp = {
-      id: Date.now(),
-      childId: child.id,
-      childName: child.name,
-      date,
-      note: note.trim() || t.routineFollowUp,
-      status: "Pending",
-    };
+    try {
+      setSaving(true);
 
-    const updatedFollowUps = [
-      ...followUps,
-      newFollowUp,
-    ];
+      /* ---------------------------------------------
+         SAVE TO MONGODB
+      --------------------------------------------- */
 
-    // Save
-    localStorage.setItem(
-      "neurocare_followups",
-      JSON.stringify(updatedFollowUps)
-    );
-
-    setFollowUps(updatedFollowUps);
-
-    // Clear form
-    setSelectedChild("");
-    setDate("");
-    setNote("");
-
-    // Multilingual success alert
-    alert(t.followUpScheduledSuccessfully);
-  };
-
-  // Mark completed
-  const markCompleted = (id) => {
-    const updatedFollowUps = followUps.map((item) =>
-      item.id === id
-        ? {
-            ...item,
-            status: "Completed",
+      const response =
+        await API.post(
+          "/child-followups",
+          {
+            childId:
+              child._id,
+            date,
+            note:
+              note.trim() ||
+              t.routineFollowUp,
           }
-        : item
-    );
+        );
 
-    localStorage.setItem(
-      "neurocare_followups",
-      JSON.stringify(updatedFollowUps)
-    );
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message ||
+            "Unable to schedule follow-up."
+        );
+      }
 
-    setFollowUps(updatedFollowUps);
+      /* ---------------------------------------------
+         ADD NEW FOLLOW-UP TO UI
+      --------------------------------------------- */
 
-    alert(t.followUpMarkedCompleted);
+      const newFollowUp =
+        response.data.followUp;
+
+      setFollowUps(
+        (current) => [
+          ...current,
+          newFollowUp,
+        ]
+      );
+
+      /* ---------------------------------------------
+         CLEAR FORM
+      --------------------------------------------- */
+
+      setSelectedChild("");
+      setDate("");
+      setNote("");
+
+      alert(
+        t.followUpScheduledSuccessfully
+      );
+
+    } catch (error) {
+      console.error(
+        "Schedule follow-up error:",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          error.message ||
+          "Unable to schedule follow-up."
+      );
+
+    } finally {
+      setSaving(false);
+    }
   };
+
+  /* =====================================================
+     MARK COMPLETED
+  ===================================================== */
+
+  const markCompleted = async (
+    id
+  ) => {
+    try {
+      const response =
+        await API.put(
+          `/child-followups/${id}/complete`
+        );
+
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message ||
+            "Unable to complete follow-up."
+        );
+      }
+
+      const updatedFollowUp =
+        response.data.followUp;
+
+      setFollowUps(
+        (current) =>
+          current.map((item) =>
+            item._id ===
+            updatedFollowUp._id
+              ? updatedFollowUp
+              : item
+          )
+      );
+
+      alert(
+        t.followUpMarkedCompleted
+      );
+
+    } catch (error) {
+      console.error(
+        "Complete follow-up error:",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Unable to mark follow-up as completed."
+      );
+    }
+  };
+
+  /* =====================================================
+     LOADING
+  ===================================================== */
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center px-6">
+
+        <div className="bg-white rounded-3xl shadow-xl p-10 text-center">
+
+          <div className="text-5xl">
+            📅
+          </div>
+
+          <h2 className="text-2xl font-bold mt-5">
+            Loading follow-ups...
+          </h2>
+
+          <p className="text-gray-500 mt-2">
+            Please wait.
+          </p>
+
+        </div>
+
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 px-6 py-10">
 
       <div className="max-w-6xl mx-auto">
 
-        {/* Header */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
 
         <div className="bg-yellow-600 text-white rounded-3xl p-8 shadow-xl">
 
@@ -139,7 +333,9 @@ function FollowUps() {
             <div>
 
               <button
-                onClick={() => navigate("/asha")}
+                onClick={() =>
+                  navigate("/asha")
+                }
                 className="text-yellow-100 hover:text-white font-semibold"
               >
                 ← {t.back}
@@ -165,7 +361,11 @@ function FollowUps() {
 
               <select
                 value={language}
-                onChange={(e) => changeLanguage(e.target.value)}
+                onChange={(e) =>
+                  changeLanguage(
+                    e.target.value
+                  )
+                }
                 className="bg-white text-gray-800 rounded-xl px-4 py-3 font-semibold outline-none cursor-pointer"
               >
 
@@ -189,7 +389,9 @@ function FollowUps() {
 
         </div>
 
-        {/* Schedule Follow-up */}
+        {/* =================================================
+            SCHEDULE FOLLOW-UP
+        ================================================= */}
 
         <form
           onSubmit={handleSubmit}
@@ -211,7 +413,9 @@ function FollowUps() {
 
               <button
                 type="button"
-                onClick={() => navigate("/add-child")}
+                onClick={() =>
+                  navigate("/add-child")
+                }
                 className="mt-4 bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-xl font-bold"
               >
                 + {t.registerChild}
@@ -233,7 +437,11 @@ function FollowUps() {
 
                 <select
                   value={selectedChild}
-                  onChange={(e) => setSelectedChild(e.target.value)}
+                  onChange={(e) =>
+                    setSelectedChild(
+                      e.target.value
+                    )
+                  }
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 >
 
@@ -241,24 +449,31 @@ function FollowUps() {
                     {t.selectRegisteredChild}
                   </option>
 
-                  {children.map((child) => (
+                  {children.map(
+                    (child) => (
 
-                    <option
-                      key={child.id}
-                      value={child.id}
-                    >
-                      {child.name} — {child.village}
-                    </option>
+                      <option
+                        key={child._id}
+                        value={child._id}
+                      >
+                        {child.name} —{" "}
+                        {child.village}
+                      </option>
 
-                  ))}
+                    )
+                  )}
 
                 </select>
 
-                {childIdFromUrl && selectedChild && (
-                  <p className="text-sm text-green-600 mt-2 font-medium">
-                    ✓ {t.childSelectedFromChildren}
-                  </p>
-                )}
+                {childIdFromUrl &&
+                  selectedChild && (
+
+                    <p className="text-sm text-green-600 mt-2 font-medium">
+                      ✓{" "}
+                      {t.childSelectedFromChildren}
+                    </p>
+
+                  )}
 
               </div>
 
@@ -273,7 +488,11 @@ function FollowUps() {
                 <input
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) =>
+                    setDate(
+                      e.target.value
+                    )
+                  }
                   min={today}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 />
@@ -294,9 +513,15 @@ function FollowUps() {
 
                 <textarea
                   value={note}
-                  onChange={(e) => setNote(e.target.value)}
+                  onChange={(e) =>
+                    setNote(
+                      e.target.value
+                    )
+                  }
                   rows={3}
-                  placeholder={t.followUpNotePlaceholder}
+                  placeholder={
+                    t.followUpNotePlaceholder
+                  }
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 />
 
@@ -306,9 +531,16 @@ function FollowUps() {
 
               <button
                 type="submit"
-                className="mt-6 bg-yellow-600 hover:bg-yellow-700 text-white px-8 py-4 rounded-xl font-bold"
+                disabled={saving}
+                className={`mt-6 text-white px-8 py-4 rounded-xl font-bold ${
+                  saving
+                    ? "bg-yellow-400 cursor-not-allowed"
+                    : "bg-yellow-600 hover:bg-yellow-700"
+                }`}
               >
-                📅 {t.scheduleFollowUp}
+                {saving
+                  ? "Saving..."
+                  : `📅 ${t.scheduleFollowUp}`}
               </button>
 
             </>
@@ -317,7 +549,9 @@ function FollowUps() {
 
         </form>
 
-        {/* Existing Follow-ups */}
+        {/* =================================================
+            EXISTING FOLLOW-UPS
+        ================================================= */}
 
         <div className="bg-white rounded-3xl shadow-xl p-8 mt-8">
 
@@ -339,58 +573,69 @@ function FollowUps() {
 
             <div className="mt-6 space-y-4">
 
-              {followUps.map((item) => (
+              {followUps.map(
+                (item) => (
 
-                <div
-                  key={item.id}
-                  className="bg-slate-50 rounded-2xl p-6"
-                >
+                  <div
+                    key={item._id}
+                    className="bg-slate-50 rounded-2xl p-6"
+                  >
 
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-                    <div>
+                      <div>
 
-                      <h3 className="text-xl font-bold">
-                        👶 {item.childName}
-                      </h3>
+                        <h3 className="text-xl font-bold">
+                          👶{" "}
+                          {item.childName}
+                        </h3>
 
-                      <p className="text-gray-600 mt-1">
-                        📅 {item.date}
-                      </p>
+                        <p className="text-gray-600 mt-1">
+                          📅{" "}
+                          {item.date}
+                        </p>
 
-                      <p className="text-gray-600 mt-1">
-                        📝 {item.note}
-                      </p>
+                        <p className="text-gray-600 mt-1">
+                          📝{" "}
+                          {item.note}
+                        </p>
 
-                    </div>
+                      </div>
 
-                    <div>
+                      <div>
 
-                      {item.status === "Completed" ? (
+                        {item.status ===
+                        "Completed" ? (
 
-                        <span className="inline-block bg-green-100 text-green-700 px-4 py-2 rounded-full font-semibold">
-                          ✅ {t.completed}
-                        </span>
+                          <span className="inline-block bg-green-100 text-green-700 px-4 py-2 rounded-full font-semibold">
+                            ✅{" "}
+                            {t.completed}
+                          </span>
 
-                      ) : (
+                        ) : (
 
-                        <button
-                          type="button"
-                          onClick={() => markCompleted(item.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-bold"
-                        >
-                          {t.markCompleted}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              markCompleted(
+                                item._id
+                              )
+                            }
+                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-bold"
+                          >
+                            {t.markCompleted}
+                          </button>
 
-                      )}
+                        )}
+
+                      </div>
 
                     </div>
 
                   </div>
 
-                </div>
-
-              ))}
+                )
+              )}
 
             </div>
 
