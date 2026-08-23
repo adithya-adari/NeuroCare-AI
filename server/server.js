@@ -6,37 +6,70 @@ import aiRoutes from "./routes/aiRoutes.js";
 import motherRoutes from "./routes/motherRoutes.js";
 import childRoutes from "./routes/childRoutes.js";
 
+import childFollowUpRoutes from "./routes/childFollowUpRoutes.js";
+import motherFollowUpRoutes from "./routes/motherFollowUpRoutes.js";
+
 import connectDB from "./config/db.js";
 
 dotenv.config();
 
 const app = express();
 
-/* -------------------- MIDDLEWARE -------------------- */
+/* =====================================================
+   MIDDLEWARE
+===================================================== */
 
 app.use(cors());
 app.use(express.json());
 
-/* -------------------- ROOT -------------------- */
+/* =====================================================
+   ROOT
+===================================================== */
 
 app.get("/", (req, res) => {
   res.send("NeuroCare AI Backend Running");
 });
 
-/* -------------------- API ROUTES -------------------- */
+/* =====================================================
+   API ROUTES
+===================================================== */
+
+/* AI */
 
 app.use("/api/ai", aiRoutes);
 
+/* Mothers */
+
 app.use("/api/mothers", motherRoutes);
+
+/* Children */
 
 app.use("/api/children", childRoutes);
 
-/* -------------------- SERVER -------------------- */
+/* Child Follow-ups */
+
+app.use(
+  "/api/child-followups",
+  childFollowUpRoutes
+);
+
+/* Mother Follow-ups */
+
+app.use(
+  "/api/mother-followups",
+  motherFollowUpRoutes
+);
+
+/* =====================================================
+   SERVER
+===================================================== */
 
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    console.log("Trying to connect to MongoDB...");
+
     await connectDB();
 
     app.listen(PORT, () => {
