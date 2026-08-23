@@ -45,7 +45,7 @@ IMPORTANT:
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
 
         systemInstruction: `
 You are NeuroCare AI.
