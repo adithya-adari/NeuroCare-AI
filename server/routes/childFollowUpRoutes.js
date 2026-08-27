@@ -1,8 +1,27 @@
 import express from "express";
 import ChildFollowUp from "../models/ChildFollowUp.js";
 import Child from "../models/Child.js";
+import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+
+/* =====================================================
+   ALL CHILD FOLLOW-UP ROUTES REQUIRE AUTHENTICATION
+===================================================== */
+
+router.use(authMiddleware);
+
+/* =====================================================
+   GET LOGGED-IN ASHA WORKER ID
+===================================================== */
+
+const getWorkerId = (req) => {
+  return (
+    req.worker?.id ||
+    req.worker?._id ||
+    req.worker?.workerId
+  );
+};
 
 /* =====================================================
    CREATE CHILD FOLLOW-UP
@@ -10,6 +29,17 @@ const router = express.Router();
 
 router.post("/", async (req, res) => {
   try {
+    const workerId =
+      getWorkerId(req);
+
+    if (!workerId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unable to identify authenticated ASHA worker.",
+      });
+    }
+
     const {
       childId,
       date,
@@ -24,12 +54,22 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const child = await Child.findById(childId);
+    /* -----------------------------------------------
+       Only allow follow-up for a child belonging
+       to the logged-in ASHA worker.
+    ------------------------------------------------ */
+
+    const child =
+      await Child.findOne({
+        _id: childId,
+        ashaWorker: workerId,
+      });
 
     if (!child) {
       return res.status(404).json({
         success: false,
-        message: "Child not found.",
+        message:
+          "Child not found or does not belong to this ASHA worker.",
       });
     }
 
@@ -40,6 +80,7 @@ router.post("/", async (req, res) => {
         date,
         note,
         status: "Pending",
+        ashaWorker: workerId,
       });
 
     res.status(201).json({
@@ -62,15 +103,28 @@ router.post("/", async (req, res) => {
   }
 });
 
-
 /* =====================================================
    GET ALL CHILD FOLLOW-UPS
+   ONLY FOR LOGGED-IN ASHA WORKER
 ===================================================== */
 
 router.get("/", async (req, res) => {
   try {
+    const workerId =
+      getWorkerId(req);
+
+    if (!workerId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unable to identify authenticated ASHA worker.",
+      });
+    }
+
     const followUps =
-      await ChildFollowUp.find()
+      await ChildFollowUp.find({
+        ashaWorker: workerId,
+      })
         .populate(
           "childId",
           "name dateOfBirth gender motherName village"
@@ -98,20 +152,52 @@ router.get("/", async (req, res) => {
   }
 });
 
-
 /* =====================================================
    GET FOLLOW-UPS FOR ONE CHILD
+   ONLY IF CHILD BELONGS TO LOGGED-IN WORKER
 ===================================================== */
 
 router.get(
   "/child/:childId",
   async (req, res) => {
     try {
-      const { childId } = req.params;
+      const workerId =
+        getWorkerId(req);
+
+      if (!workerId) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Unable to identify authenticated ASHA worker.",
+        });
+      }
+
+      const {
+        childId,
+      } = req.params;
+
+      /* -----------------------------------------------
+         Verify child ownership
+      ------------------------------------------------ */
+
+      const child =
+        await Child.findOne({
+          _id: childId,
+          ashaWorker: workerId,
+        });
+
+      if (!child) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Child not found or does not belong to this ASHA worker.",
+        });
+      }
 
       const followUps =
         await ChildFollowUp.find({
-          childId,
+          childId: child._id,
+          ashaWorker: workerId,
         }).sort({
           date: 1,
           createdAt: -1,
@@ -136,18 +222,32 @@ router.get(
   }
 );
 
-
 /* =====================================================
    MARK CHILD FOLLOW-UP COMPLETED
+   ONLY FOR LOGGED-IN ASHA WORKER
 ===================================================== */
 
 router.put(
   "/:id/complete",
   async (req, res) => {
     try {
+      const workerId =
+        getWorkerId(req);
+
+      if (!workerId) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Unable to identify authenticated ASHA worker.",
+        });
+      }
+
       const followUp =
-        await ChildFollowUp.findByIdAndUpdate(
-          req.params.id,
+        await ChildFollowUp.findOneAndUpdate(
+          {
+            _id: req.params.id,
+            ashaWorker: workerId,
+          },
           {
             status: "Completed",
           },
@@ -159,7 +259,8 @@ router.put(
       if (!followUp) {
         return res.status(404).json({
           success: false,
-          message: "Follow-up not found.",
+          message:
+            "Follow-up not found or does not belong to this ASHA worker.",
         });
       }
 
@@ -184,24 +285,37 @@ router.put(
   }
 );
 
-
 /* =====================================================
    DELETE CHILD FOLLOW-UP
+   ONLY FOR LOGGED-IN ASHA WORKER
 ===================================================== */
 
 router.delete(
   "/:id",
   async (req, res) => {
     try {
+      const workerId =
+        getWorkerId(req);
+
+      if (!workerId) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Unable to identify authenticated ASHA worker.",
+        });
+      }
+
       const followUp =
-        await ChildFollowUp.findByIdAndDelete(
-          req.params.id
-        );
+        await ChildFollowUp.findOneAndDelete({
+          _id: req.params.id,
+          ashaWorker: workerId,
+        });
 
       if (!followUp) {
         return res.status(404).json({
           success: false,
-          message: "Follow-up not found.",
+          message:
+            "Follow-up not found or does not belong to this ASHA worker.",
         });
       }
 
@@ -219,11 +333,11 @@ router.delete(
 
       res.status(500).json({
         success: false,
-        message: error.message,
+        message:
+          "Unable to delete child follow-up.",
       });
     }
   }
 );
-
 
 export default router;

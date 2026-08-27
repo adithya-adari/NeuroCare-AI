@@ -34,6 +34,23 @@ const childSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
+    /* =====================================================
+       ASHA WORKER OWNERSHIP
+
+       Each child belongs to the ASHA worker who
+       registered the child.
+
+       Kept optional temporarily so existing
+       children continue to remain valid.
+    ===================================================== */
+
+    ashaWorker: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AshaWorker",
+      required: false,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -45,4 +62,4 @@ const Child = mongoose.model(
   childSchema
 );
 
-export default Child; 
+export default Child;

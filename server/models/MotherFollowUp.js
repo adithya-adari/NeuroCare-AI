@@ -27,8 +27,28 @@ const motherFollowUpSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["Pending", "Completed"],
+      enum: [
+        "Pending",
+        "Completed",
+      ],
       default: "Pending",
+    },
+
+    /* =====================================================
+       ASHA WORKER OWNERSHIP
+
+       Links this follow-up to the ASHA worker
+       who created it.
+       
+       Kept optional temporarily so existing
+       follow-ups remain valid.
+    ===================================================== */
+
+    ashaWorker: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ASHAWorker",
+      required: false,
+      index: true,
     },
   },
   {
@@ -36,9 +56,10 @@ const motherFollowUpSchema = new mongoose.Schema(
   }
 );
 
-const MotherFollowUp = mongoose.model(
-  "MotherFollowUp",
-  motherFollowUpSchema
-);
+const MotherFollowUp =
+  mongoose.model(
+    "MotherFollowUp",
+    motherFollowUpSchema
+  );
 
 export default MotherFollowUp;

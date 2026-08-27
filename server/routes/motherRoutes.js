@@ -1,12 +1,44 @@
 import express from "express";
 import Mother from "../models/Mother.js";
+import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-/* -------------------- CREATE MOTHER -------------------- */
+/* =====================================================
+   ALL MOTHER ROUTES REQUIRE ASHA AUTHENTICATION
+===================================================== */
+
+router.use(authMiddleware);
+
+/* =====================================================
+   GET LOGGED-IN ASHA WORKER ID
+===================================================== */
+
+const getWorkerId = (req) => {
+  return (
+    req.worker?.id ||
+    req.worker?._id ||
+    req.worker?.workerId
+  );
+};
+
+/* =====================================================
+   CREATE MOTHER
+===================================================== */
 
 router.post("/", async (req, res) => {
   try {
+    const workerId =
+      getWorkerId(req);
+
+    if (!workerId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unable to identify authenticated ASHA worker.",
+      });
+    }
+
     const {
       name,
       age,
@@ -23,6 +55,9 @@ router.post("/", async (req, res) => {
       village,
       pregnancyStatus,
       expectedDeliveryDate,
+
+      /* Assign mother to logged-in ASHA worker */
+      ashaWorker: workerId,
     });
 
     res.status(201).json({
@@ -42,14 +77,30 @@ router.post("/", async (req, res) => {
   }
 });
 
-/* -------------------- GET ALL MOTHERS -------------------- */
+/* =====================================================
+   GET MOTHERS BELONGING TO LOGGED-IN ASHA WORKER
+===================================================== */
 
 router.get("/", async (req, res) => {
   try {
-    const mothers = await Mother.find()
-      .sort({
-        createdAt: -1,
+    const workerId =
+      getWorkerId(req);
+
+    if (!workerId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unable to identify authenticated ASHA worker.",
       });
+    }
+
+    const mothers =
+      await Mother.find({
+        ashaWorker: workerId,
+      })
+        .sort({
+          createdAt: -1,
+        });
 
     res.json({
       success: true,
@@ -68,14 +119,29 @@ router.get("/", async (req, res) => {
   }
 });
 
-/* -------------------- GET ONE MOTHER -------------------- */
+/* =====================================================
+   GET ONE MOTHER
+   ONLY IF IT BELONGS TO LOGGED-IN WORKER
+===================================================== */
 
 router.get("/:id", async (req, res) => {
   try {
+    const workerId =
+      getWorkerId(req);
+
+    if (!workerId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unable to identify authenticated ASHA worker.",
+      });
+    }
+
     const mother =
-      await Mother.findById(
-        req.params.id
-      );
+      await Mother.findOne({
+        _id: req.params.id,
+        ashaWorker: workerId,
+      });
 
     if (!mother) {
       return res.status(404).json({
@@ -101,14 +167,52 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-/* -------------------- UPDATE MOTHER -------------------- */
+/* =====================================================
+   UPDATE MOTHER
+   ONLY IF IT BELONGS TO LOGGED-IN WORKER
+===================================================== */
 
 router.put("/:id", async (req, res) => {
   try {
+    const workerId =
+      getWorkerId(req);
+
+    if (!workerId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unable to identify authenticated ASHA worker.",
+      });
+    }
+
+    /*
+     * Never allow the frontend to change ownership.
+     * Only update normal mother fields.
+     */
+
+    const {
+      name,
+      age,
+      mobile,
+      village,
+      pregnancyStatus,
+      expectedDeliveryDate,
+    } = req.body;
+
     const mother =
-      await Mother.findByIdAndUpdate(
-        req.params.id,
-        req.body,
+      await Mother.findOneAndUpdate(
+        {
+          _id: req.params.id,
+          ashaWorker: workerId,
+        },
+        {
+          name,
+          age,
+          mobile,
+          village,
+          pregnancyStatus,
+          expectedDeliveryDate,
+        },
         {
           new: true,
           runValidators: true,
@@ -139,14 +243,29 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-/* -------------------- DELETE MOTHER -------------------- */
+/* =====================================================
+   DELETE MOTHER
+   ONLY IF IT BELONGS TO LOGGED-IN WORKER
+===================================================== */
 
 router.delete("/:id", async (req, res) => {
   try {
+    const workerId =
+      getWorkerId(req);
+
+    if (!workerId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unable to identify authenticated ASHA worker.",
+      });
+    }
+
     const mother =
-      await Mother.findByIdAndDelete(
-        req.params.id
-      );
+      await Mother.findOneAndDelete({
+        _id: req.params.id,
+        ashaWorker: workerId,
+      });
 
     if (!mother) {
       return res.status(404).json({

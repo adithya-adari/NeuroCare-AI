@@ -39,6 +39,21 @@ const motherSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    /* =====================================================
+       ASHA WORKER OWNERSHIP
+
+       Each mother can belong to one ASHA worker.
+       Kept optional temporarily so existing records
+       continue working while we migrate the system.
+    ===================================================== */
+
+    ashaWorker: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AshaWorker",
+      required: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

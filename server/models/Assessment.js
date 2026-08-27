@@ -45,12 +45,30 @@ const assessmentSchema = new mongoose.Schema(
         required: true,
       },
     },
+
+    /* =====================================================
+       ASHA WORKER OWNERSHIP
+
+       Optional because the application may also support
+       assessments that are not connected to a registered
+       ASHA child.
+    ===================================================== */
+
+    ashaWorker: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AshaWorker",
+      required: false,
+      index: true,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-const Assessment = mongoose.model("Assessment", assessmentSchema);
+const Assessment = mongoose.model(
+  "Assessment",
+  assessmentSchema
+);
 
 export default Assessment;
