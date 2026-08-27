@@ -20,7 +20,7 @@ function Mothers() {
   const [error, setError] = useState("");
 
   /* =====================================================
-     LOAD MOTHERS FROM MONGODB
+     LOAD MOTHERS + FOLLOW-UPS
   ===================================================== */
 
   useEffect(() => {
@@ -28,12 +28,17 @@ function Mothers() {
     loadFollowUps();
   }, []);
 
+  /* =====================================================
+     LOAD MOTHERS FROM MONGODB
+  ===================================================== */
+
   const loadMothers = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await API.get("/mothers");
+      const response =
+        await API.get("/mothers");
 
       if (response.data?.success) {
         setMothers(
@@ -65,21 +70,30 @@ function Mothers() {
   };
 
   /* =====================================================
-     LOAD FOLLOW-UPS
-     
-     Follow-ups are still using localStorage for now.
+     LOAD FOLLOW-UPS FROM MONGODB
   ===================================================== */
 
-  const loadFollowUps = () => {
+  const loadFollowUps = async () => {
     try {
-      const savedFollowUps =
-        JSON.parse(
-          localStorage.getItem(
-            "neurocare_mother_followups"
-          )
-        ) || [];
+      const response =
+        await API.get(
+          "/mother-followups"
+        );
 
-      setFollowUps(savedFollowUps);
+      console.log(
+        "Mother follow-ups:",
+        response.data
+      );
+
+      if (
+        response.data?.success
+      ) {
+        setFollowUps(
+          response.data.followUps || []
+        );
+      } else {
+        setFollowUps([]);
+      }
     } catch (error) {
       console.error(
         "Failed to load mother follow-ups:",
@@ -108,34 +122,62 @@ function Mothers() {
 
   /* =====================================================
      FIND MOTHER FOLLOW-UP
-     
-     Supports both:
-     - old localStorage id
-     - new MongoDB _id
+
+     MongoDB returns:
+
+     motherId: {
+       _id: "...",
+       name: "..."
+     }
+
+     So we must compare motherId._id
+     with mother._id.
   ===================================================== */
 
   const getMotherFollowUp = (mother) => {
-    const mongoId = mother?._id;
-    const oldId = mother?.id;
+    const motherId =
+      mother?._id ||
+      mother?.id;
 
     return followUps.find(
       (item) => {
-        const followUpMotherId =
-          String(item.motherId);
+
+        let followUpMotherId;
+
+        /* -----------------------------------------------
+           MongoDB populated object
+        ------------------------------------------------ */
+
+        if (
+          item?.motherId &&
+          typeof item.motherId ===
+            "object"
+        ) {
+          followUpMotherId =
+            item.motherId?._id;
+        }
+
+        /* -----------------------------------------------
+           Old/string ID format
+        ------------------------------------------------ */
+
+        else {
+          followUpMotherId =
+            item?.motherId;
+        }
+
+        /* -----------------------------------------------
+           Match mother + only pending
+        ------------------------------------------------ */
 
         return (
-          (
-            mongoId &&
-            followUpMotherId ===
-              String(mongoId)
-          ) ||
-          (
-            oldId &&
-            followUpMotherId ===
-              String(oldId)
-          )
-        ) &&
-        item.status !== "Completed";
+          String(
+            followUpMotherId
+          ) ===
+            String(motherId) &&
+          item?.status !==
+            "Completed"
+        );
       }
     );
   };
@@ -146,6 +188,7 @@ function Mothers() {
 
   const filteredMothers =
     mothers.filter((mother) => {
+
       const search =
         searchTerm
           .toLowerCase()
@@ -170,6 +213,7 @@ function Mothers() {
   const getPregnancyStatusText = (
     status
   ) => {
+
     if (status === "Pregnant") {
       return t.pregnant;
     }
@@ -400,7 +444,9 @@ function Mothers() {
 
               <button
                 onClick={() =>
-                  navigate("/add-mother")
+                  navigate(
+                    "/add-mother"
+                  )
                 }
                 className="mt-6 bg-blue-700 hover:bg-blue-800 text-white px-8 py-4 rounded-xl font-bold"
               >
@@ -455,11 +501,6 @@ function Mothers() {
                     getMotherFollowUp(
                       mother
                     );
-
-                  /*
-                   * MongoDB _id is now the
-                   * primary ID.
-                   */
 
                   const motherId =
                     mother._id ||
@@ -516,7 +557,9 @@ function Mothers() {
 
                       </div>
 
-                      {/* PREGNANCY INFORMATION */}
+                      {/* =================================================
+                          PREGNANCY INFORMATION
+                      ================================================= */}
 
                       <div className="mt-6 bg-blue-50 rounded-2xl p-5">
 
@@ -561,7 +604,9 @@ function Mothers() {
 
                       </div>
 
-                      {/* FOLLOW-UP */}
+                      {/* =================================================
+                          FOLLOW-UP
+                      ================================================= */}
 
                       <div className="mt-4 bg-yellow-50 rounded-2xl p-5">
 
@@ -584,16 +629,14 @@ function Mothers() {
                             </p>
 
                             <p className="text-gray-600 mt-1">
-                              {followUp.note}
+                              📝{" "}
+                              {followUp.note ||
+                                t.routineMaternalFollowUp}
                             </p>
 
                             <span className="inline-block mt-3 bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-semibold">
-
-                              {followUp.status ===
-                              "Pending"
-                                ? t.pending
-                                : followUp.status}
-
+                              ⏳{" "}
+                              {t.pending}
                             </span>
 
                           </div>
@@ -608,7 +651,9 @@ function Mothers() {
 
                       </div>
 
-                      {/* ACTIONS */}
+                      {/* =================================================
+                          ACTIONS
+                      ================================================= */}
 
                       <div className="flex flex-col sm:flex-row gap-3 mt-6">
 
@@ -620,7 +665,8 @@ function Mothers() {
                           }
                           className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-xl font-bold"
                         >
-                          📅 {t.followUp}
+                          📅{" "}
+                          {t.followUp}
                         </button>
 
                         <button

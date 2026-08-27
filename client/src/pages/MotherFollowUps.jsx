@@ -5,32 +5,44 @@ import API from "../services/api";
 
 function MotherFollowUps() {
   const navigate = useNavigate();
-  const { language, changeLanguage, t } = useLanguage();
+
+  const {
+    language,
+    changeLanguage,
+    t,
+  } = useLanguage();
 
   const today =
-    new Date().toISOString().split("T")[0];
+    new Date()
+      .toISOString()
+      .split("T")[0];
 
-  const [searchParams] = useSearchParams();
+  const [searchParams] =
+    useSearchParams();
+
   const motherIdFromUrl =
     searchParams.get("motherId");
 
-  const [mothers, setMothers] = useState([]);
-  const [followUps, setFollowUps] = useState([]);
+  const [mothers, setMothers] =
+    useState([]);
+
+  const [followUps, setFollowUps] =
+    useState([]);
 
   const [selectedMother, setSelectedMother] =
     useState("");
 
-  const [date, setDate] = useState("");
-  const [note, setNote] = useState("");
+  const [date, setDate] =
+    useState("");
+
+  const [note, setNote] =
+    useState("");
 
   const [loading, setLoading] =
     useState(true);
 
-  const [saving, setSaving] =
-    useState(false);
-
   /* =====================================================
-     LOAD MOTHERS + FOLLOW-UPS FROM MONGODB
+     LOAD DATA
   ===================================================== */
 
   useEffect(() => {
@@ -42,21 +54,26 @@ function MotherFollowUps() {
       setLoading(true);
 
       /* -----------------------------------------------
-         GET MOTHERS
+         LOAD MOTHERS
       ------------------------------------------------ */
 
       const motherResponse =
         await API.get("/mothers");
 
-      const savedMothers =
-        motherResponse.data?.success
-          ? motherResponse.data.mothers || []
-          : [];
+      let motherList = [];
 
-      setMothers(savedMothers);
+      if (
+        motherResponse.data?.success
+      ) {
+        motherList =
+          motherResponse.data.mothers ||
+          [];
+      }
+
+      setMothers(motherList);
 
       /* -----------------------------------------------
-         GET MOTHER FOLLOW-UPS
+         LOAD FOLLOW-UPS
       ------------------------------------------------ */
 
       const followUpResponse =
@@ -64,98 +81,138 @@ function MotherFollowUps() {
           "/mother-followups"
         );
 
-      const savedFollowUps =
-        followUpResponse.data?.success
-          ? followUpResponse.data.followUps || []
-          : [];
+      let followUpList = [];
 
-      setFollowUps(savedFollowUps);
+      if (
+        followUpResponse.data?.success
+      ) {
+        followUpList =
+          followUpResponse.data.followUps ||
+          [];
+      }
+
+      setFollowUps(
+        followUpList
+      );
 
       /* -----------------------------------------------
-         AUTO SELECT MOTHER
+         SELECT MOTHER FROM URL
       ------------------------------------------------ */
 
       if (motherIdFromUrl) {
-        const motherExists =
-          savedMothers.some(
-            (mother) =>
-              String(mother._id) ===
-              String(motherIdFromUrl)
+
+        const selected =
+          motherList.find(
+            (mother) => {
+
+              const motherId =
+                mother._id ||
+                mother.id;
+
+              return (
+                String(motherId) ===
+                String(
+                  motherIdFromUrl
+                )
+              );
+            }
           );
 
-        if (motherExists) {
+        if (selected) {
+
           setSelectedMother(
-            motherIdFromUrl
+            String(
+              selected._id ||
+                selected.id
+            )
           );
+
         }
+
       }
 
     } catch (error) {
+
       console.error(
-        "Unable to load mother follow-up data:",
+        "Failed to load mother follow-up data:",
         error
       );
 
-      alert(
-        error.response?.data?.message ||
-          "Unable to load mother follow-ups. Please try again."
-      );
+      setMothers([]);
+      setFollowUps([]);
 
     } finally {
+
       setLoading(false);
+
     }
   };
 
   /* =====================================================
-     SCHEDULE MOTHER FOLLOW-UP
+     SCHEDULE FOLLOW-UP
   ===================================================== */
 
   const handleSubmit = async (e) => {
+
     e.preventDefault();
 
-    /* -----------------------------------------------
-       VALIDATION
-    ------------------------------------------------ */
-
-    if (!selectedMother || !date) {
-      alert(t.motherFollowUpRequired);
+    if (
+      !selectedMother ||
+      !date
+    ) {
+      alert(
+        t.motherFollowUpRequired
+      );
       return;
     }
 
     if (date < today) {
-      alert(t.motherFollowUpDatePast);
+      alert(
+        t.motherFollowUpDatePast
+      );
       return;
     }
-
-    /* -----------------------------------------------
-       FIND SELECTED MOTHER
-    ------------------------------------------------ */
 
     const mother =
       mothers.find(
-        (item) =>
-          String(item._id) ===
-          String(selectedMother)
+        (item) => {
+
+          const motherId =
+            item._id ||
+            item.id;
+
+          return (
+            String(motherId) ===
+            String(
+              selectedMother
+            )
+          );
+
+        }
       );
 
     if (!mother) {
-      alert(t.motherNotFound);
+      alert(
+        t.motherNotFound
+      );
       return;
     }
 
-    try {
-      setSaving(true);
+    const motherId =
+      mother._id ||
+      mother.id;
 
-      /* ---------------------------------------------
-         SAVE TO MONGODB
-      --------------------------------------------- */
+    try {
 
       const response =
         await API.post(
           "/mother-followups",
           {
             motherId:
-              mother._id,
+              String(motherId),
+
+            motherName:
+              mother.name,
 
             date,
 
@@ -165,30 +222,24 @@ function MotherFollowUps() {
           }
         );
 
-      if (!response.data?.success) {
-        throw new Error(
+      if (
+        !response.data?.success
+      ) {
+
+        alert(
           response.data?.message ||
-            "Unable to schedule mother follow-up."
+            "Failed to schedule follow-up."
         );
+
+        return;
+
       }
 
-      /* ---------------------------------------------
-         ADD TO UI
-      --------------------------------------------- */
+      /* -----------------------------------------------
+         RELOAD FOLLOW-UPS FROM DATABASE
+      ------------------------------------------------ */
 
-      const newFollowUp =
-        response.data.followUp;
-
-      setFollowUps(
-        (current) => [
-          ...current,
-          newFollowUp,
-        ]
-      );
-
-      /* ---------------------------------------------
-         CLEAR FORM
-      --------------------------------------------- */
+      await loadData();
 
       setSelectedMother("");
       setDate("");
@@ -199,20 +250,20 @@ function MotherFollowUps() {
       );
 
     } catch (error) {
+
       console.error(
-        "Schedule mother follow-up error:",
+        "Failed to schedule mother follow-up:",
         error
       );
 
       alert(
-        error.response?.data?.message ||
-          error.message ||
-          "Unable to schedule mother follow-up."
+        error.response?.data
+          ?.message ||
+          "Failed to schedule follow-up."
       );
 
-    } finally {
-      setSaving(false);
     }
+
   };
 
   /* =====================================================
@@ -220,87 +271,62 @@ function MotherFollowUps() {
   ===================================================== */
 
   const markCompleted = async (
-    id
+    followUpId
   ) => {
+
     try {
+
       const response =
         await API.put(
-          `/mother-followups/${id}/complete`
+          `/mother-followups/${followUpId}/complete`
         );
 
-      if (!response.data?.success) {
-        throw new Error(
+      if (
+        !response.data?.success
+      ) {
+
+        alert(
           response.data?.message ||
-            "Unable to complete follow-up."
+            "Failed to complete follow-up."
         );
+
+        return;
+
       }
 
-      const updatedFollowUp =
-        response.data.followUp;
-
-      setFollowUps(
-        (current) =>
-          current.map((item) =>
-            item._id ===
-            updatedFollowUp._id
-              ? updatedFollowUp
-              : item
-          )
-      );
+      await loadData();
 
       alert(
         t.followUpMarkedCompleted
       );
 
     } catch (error) {
+
       console.error(
-        "Complete mother follow-up error:",
+        "Failed to complete follow-up:",
         error
       );
 
       alert(
-        error.response?.data?.message ||
-          "Unable to mark follow-up as completed."
+        error.response?.data
+          ?.message ||
+          "Failed to complete follow-up."
       );
+
     }
+
   };
 
   /* =====================================================
-     LOADING
+     UI
   ===================================================== */
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center px-6">
-
-        <div className="bg-white rounded-3xl shadow-xl p-10 text-center">
-
-          <div className="text-5xl">
-            👩📅
-          </div>
-
-          <h2 className="text-2xl font-bold mt-5">
-            Loading mother follow-ups...
-          </h2>
-
-          <p className="text-gray-500 mt-2">
-            Please wait.
-          </p>
-
-        </div>
-
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-100 px-6 py-10">
 
       <div className="max-w-6xl mx-auto">
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
         <div className="bg-blue-700 text-white rounded-3xl p-8 shadow-xl">
 
@@ -365,9 +391,7 @@ function MotherFollowUps() {
 
         </div>
 
-        {/* =================================================
-            SCHEDULE FOLLOW-UP
-        ================================================= */}
+        {/* SCHEDULE */}
 
         <form
           onSubmit={handleSubmit}
@@ -379,7 +403,21 @@ function MotherFollowUps() {
             {t.scheduleNewMotherFollowUp}
           </h2>
 
-          {mothers.length === 0 ? (
+          {loading ? (
+
+            <div className="mt-6 bg-blue-50 rounded-2xl p-6 text-center">
+
+              <div className="text-4xl">
+                ⏳
+              </div>
+
+              <p className="text-blue-700 font-semibold mt-3">
+                Loading mothers...
+              </p>
+
+            </div>
+
+          ) : mothers.length === 0 ? (
 
             <div className="mt-6 bg-blue-50 border-l-4 border-blue-500 rounded-xl p-5">
 
@@ -390,7 +428,9 @@ function MotherFollowUps() {
               <button
                 type="button"
                 onClick={() =>
-                  navigate("/add-mother")
+                  navigate(
+                    "/add-mother"
+                  )
                 }
                 className="mt-4 bg-blue-700 hover:bg-blue-800 text-white px-6 py-3 rounded-xl font-bold"
               >
@@ -426,17 +466,23 @@ function MotherFollowUps() {
                   </option>
 
                   {mothers.map(
-                    (mother) => (
+                    (mother) => {
 
-                      <option
-                        key={mother._id}
-                        value={mother._id}
-                      >
-                        {mother.name} —{" "}
-                        {mother.village}
-                      </option>
+                      const motherId =
+                        mother._id ||
+                        mother.id;
 
-                    )
+                      return (
+                        <option
+                          key={motherId}
+                          value={motherId}
+                        >
+                          {mother.name} —{" "}
+                          {mother.village}
+                        </option>
+                      );
+
+                    }
                   )}
 
                 </select>
@@ -507,16 +553,10 @@ function MotherFollowUps() {
 
               <button
                 type="submit"
-                disabled={saving}
-                className={`mt-6 text-white px-8 py-4 rounded-xl font-bold ${
-                  saving
-                    ? "bg-blue-400 cursor-not-allowed"
-                    : "bg-blue-700 hover:bg-blue-800"
-                }`}
+                className="mt-6 bg-blue-700 hover:bg-blue-800 text-white px-8 py-4 rounded-xl font-bold"
               >
-                {saving
-                  ? "Saving..."
-                  : `📅 ${t.scheduleFollowUp}`}
+                📅{" "}
+                {t.scheduleFollowUp}
               </button>
 
             </>
@@ -525,9 +565,7 @@ function MotherFollowUps() {
 
         </form>
 
-        {/* =================================================
-            EXISTING FOLLOW-UPS
-        ================================================= */}
+        {/* EXISTING FOLLOW-UPS */}
 
         <div className="bg-white rounded-3xl shadow-xl p-8 mt-8">
 
@@ -550,65 +588,90 @@ function MotherFollowUps() {
             <div className="mt-6 space-y-4">
 
               {followUps.map(
-                (item) => (
+                (item) => {
 
-                  <div
-                    key={item._id}
-                    className="bg-slate-50 rounded-2xl p-6"
-                  >
+                  const followUpId =
+                    item._id ||
+                    item.id;
 
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  return (
 
-                      <div>
+                    <div
+                      key={followUpId}
+                      className="bg-slate-50 rounded-2xl p-6"
+                    >
 
-                        <h3 className="text-xl font-bold">
-                          👩{" "}
-                          {item.motherName}
-                        </h3>
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-                        <p className="text-gray-600 mt-1">
-                          📅 {item.date}
-                        </p>
+                        <div>
 
-                        <p className="text-gray-600 mt-1">
-                          📝{" "}
-                          {item.note}
-                        </p>
+                          <h3 className="text-xl font-bold">
+                            👩{" "}
+                            {item.motherName}
+                          </h3>
 
-                      </div>
+                          <p className="text-gray-600 mt-1">
+                            📅{" "}
+                            {item.date}
+                          </p>
 
-                      <div>
+                          <p className="text-gray-600 mt-1">
+                            📝{" "}
+                            {item.note ||
+                              t.routineMaternalFollowUp}
+                          </p>
 
-                        {item.status ===
-                        "Completed" ? (
-
-                          <span className="inline-block bg-green-100 text-green-700 px-4 py-2 rounded-full font-semibold">
-                            ✅ {t.completed}
+                          <span
+                            className={
+                              item.status ===
+                              "Completed"
+                                ? "inline-block mt-3 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold"
+                                : "inline-block mt-3 bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-semibold"
+                            }
+                          >
+                            {item.status ===
+                            "Completed"
+                              ? `✅ ${t.completed}`
+                              : `⏳ ${t.pending}`}
                           </span>
 
-                        ) : (
+                        </div>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              markCompleted(
-                                item._id
-                              )
-                            }
-                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-bold"
-                          >
-                            {t.markCompleted}
-                          </button>
+                        <div>
 
-                        )}
+                          {item.status ===
+                          "Completed" ? (
+
+                            <span className="inline-block bg-green-100 text-green-700 px-4 py-2 rounded-full font-semibold">
+                              ✅{" "}
+                              {t.completed}
+                            </span>
+
+                          ) : (
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                markCompleted(
+                                  followUpId
+                                )
+                              }
+                              className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-bold"
+                            >
+                              {t.markCompleted}
+                            </button>
+
+                          )}
+
+                        </div>
 
                       </div>
 
                     </div>
 
-                  </div>
+                  );
 
-                )
+                }
               )}
 
             </div>

@@ -16,25 +16,20 @@ function Children() {
   const [loadingChildren, setLoadingChildren] = useState(true);
   const [loadingAssessments, setLoadingAssessments] =
     useState(false);
+  const [loadingFollowUps, setLoadingFollowUps] =
+    useState(false);
 
   /* =====================================================
-     LOAD CHILDREN FROM MONGODB
+     LOAD PAGE DATA
   ===================================================== */
 
   useEffect(() => {
     loadChildren();
-
-    // Follow-ups remain in localStorage
-    const savedFollowUps =
-      JSON.parse(
-        localStorage.getItem("neurocare_followups")
-      ) || [];
-
-    setFollowUps(savedFollowUps);
+    loadChildFollowUps();
   }, []);
 
   /* =====================================================
-     GET CHILDREN
+     GET CHILDREN FROM MONGODB
   ===================================================== */
 
   const loadChildren = async () => {
@@ -49,13 +44,11 @@ function Children() {
 
         setChildren(mongoChildren);
 
-        // Load assessments for MongoDB children
         loadAssessments(mongoChildren);
       } else {
         setChildren([]);
         setAssessments([]);
       }
-
     } catch (error) {
       console.error(
         "Unable to load children:",
@@ -68,9 +61,60 @@ function Children() {
       alert(
         "Unable to load children. Please try again."
       );
-
     } finally {
       setLoadingChildren(false);
+    }
+  };
+
+  /* =====================================================
+     GET CHILD FOLLOW-UPS FROM MONGODB
+  ===================================================== */
+
+  const loadChildFollowUps = async () => {
+    try {
+      setLoadingFollowUps(true);
+
+      const response =
+        await API.get("/child-followups");
+
+      if (response.data?.success) {
+        const mongoFollowUps =
+          response.data.followUps || [];
+
+        setFollowUps(mongoFollowUps);
+
+        console.log(
+          "Child follow-ups loaded:",
+          mongoFollowUps
+        );
+      } else {
+        setFollowUps([]);
+      }
+    } catch (error) {
+      console.error(
+        "Unable to load child follow-ups:",
+        error
+      );
+
+      /*
+       * Fallback to old localStorage data.
+       * This prevents old records from disappearing
+       * if the API temporarily fails.
+       */
+      try {
+        const savedFollowUps =
+          JSON.parse(
+            localStorage.getItem(
+              "neurocare_followups"
+            )
+          ) || [];
+
+        setFollowUps(savedFollowUps);
+      } catch {
+        setFollowUps([]);
+      }
+    } finally {
+      setLoadingFollowUps(false);
     }
   };
 
@@ -95,14 +139,6 @@ function Children() {
       const results = await Promise.all(
         savedChildren.map(async (child) => {
           try {
-            /*
-              MongoDB children use _id.
-
-              Old localStorage children used id.
-              We support both so existing assessment
-              records don't immediately break.
-            */
-
             const childId =
               child._id || child.id;
 
@@ -116,9 +152,8 @@ function Children() {
               );
 
             return (
-              response.data.assessments || []
+              response.data?.assessments || []
             );
-
           } catch (error) {
             console.log(
               `Unable to load assessments for child ${
@@ -135,22 +170,14 @@ function Children() {
       const allAssessments =
         results.flat();
 
-      /*
-        The API returns newest assessments first.
-        Keep that order so the first assessment
-        is the latest one.
-      */
-
       setAssessments(allAssessments);
-
     } catch (error) {
-      console.log(
+      console.error(
         "Unable to load assessments:",
         error
       );
 
       setAssessments([]);
-
     } finally {
       setLoadingAssessments(false);
     }
@@ -224,19 +251,68 @@ function Children() {
 
   /* =====================================================
      GET CHILD FOLLOW-UP
-
-     FOLLOW-UPS REMAIN IN LOCALSTORAGE
+     
+     FOLLOW-UPS COME FROM MONGODB
   ===================================================== */
 
   const getChildFollowUp = (
     childId
   ) => {
-    return followUps.find(
-      (item) =>
-        String(item.childId) ===
-          String(childId) &&
-        item.status !== "Completed"
+    const matchingFollowUps =
+      followUps.filter((item) => {
+
+        /*
+         * MongoDB may return:
+         *
+         * childId: "123"
+         *
+         * OR:
+         *
+         * childId: {
+         *   _id: "123",
+         *   name: "Child"
+         * }
+         */
+
+        const followUpChildId =
+          item.childId?._id ||
+          item.childId;
+
+        const sameChild =
+          String(followUpChildId) ===
+          String(childId);
+
+        const status =
+          String(
+            item.status || ""
+          )
+            .trim()
+            .toLowerCase();
+
+        return (
+          sameChild &&
+          status !== "completed"
+        );
+      });
+
+    if (
+      matchingFollowUps.length === 0
+    ) {
+      return null;
+    }
+
+    /*
+     * If multiple pending follow-ups exist,
+     * show the nearest scheduled date.
+     */
+
+    matchingFollowUps.sort(
+      (a, b) =>
+        new Date(a.date).getTime() -
+        new Date(b.date).getTime()
     );
+
+    return matchingFollowUps[0];
   };
 
   /* =====================================================
@@ -336,6 +412,35 @@ function Children() {
   };
 
   /* =====================================================
+     FORMAT FOLLOW-UP DATE
+  ===================================================== */
+
+  const formatFollowUpDate = (
+    date
+  ) => {
+    if (!date) {
+      return "N/A";
+    }
+
+    /*
+     * Keep YYYY-MM-DD values stable
+     * without timezone shifting.
+     */
+
+    const dateText =
+      String(date).substring(0, 10);
+
+    const parts =
+      dateText.split("-");
+
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    return dateText;
+  };
+
+  /* =====================================================
      SEARCH
   ===================================================== */
 
@@ -387,6 +492,10 @@ function Children() {
     );
   }
 
+  /* =====================================================
+     MAIN UI
+  ===================================================== */
+
   return (
     <div className="min-h-screen bg-slate-100 px-6 py-10">
 
@@ -421,7 +530,7 @@ function Children() {
 
             </div>
 
-            {/* Language Selector */}
+            {/* LANGUAGE */}
 
             <div className="bg-white/10 rounded-2xl p-4">
 
@@ -504,6 +613,19 @@ function Children() {
           )}
 
         {/* =================================================
+            LOADING FOLLOW-UPS
+        ================================================= */}
+
+        {loadingFollowUps &&
+          children.length > 0 && (
+
+            <div className="bg-yellow-50 text-yellow-700 rounded-2xl p-4 mt-4 text-center font-semibold">
+              Loading follow-ups...
+            </div>
+
+          )}
+
+        {/* =================================================
             NO CHILDREN
         ================================================= */}
 
@@ -564,11 +686,6 @@ function Children() {
             {filteredChildren.map(
               (child) => {
 
-                /*
-                  MongoDB uses _id.
-                  Old localStorage data used id.
-                */
-
                 const childId =
                   child._id || child.id;
 
@@ -589,7 +706,9 @@ function Children() {
                     className="bg-white rounded-3xl shadow-xl p-8"
                   >
 
-                    {/* Child Information */}
+                    {/* =================================================
+                        CHILD INFORMATION
+                    ================================================= */}
 
                     <div className="flex items-start justify-between gap-4">
 
@@ -633,7 +752,9 @@ function Children() {
 
                     </div>
 
-                    {/* Latest Assessment */}
+                    {/* =================================================
+                        LATEST ASSESSMENT
+                    ================================================= */}
 
                     <div className="mt-6 bg-blue-50 rounded-2xl p-5">
 
@@ -694,54 +815,115 @@ function Children() {
 
                     </div>
 
-                    {/* Follow-up */}
+                    {/* =================================================
+                        FOLLOW-UP
+                    ================================================= */}
 
                     <div className="mt-4 bg-yellow-50 rounded-2xl p-5">
 
-                      <h3 className="font-bold text-yellow-700">
-                        📅 {t.followUp}
-                      </h3>
+                      <div className="flex items-center justify-between gap-3">
+
+                        <h3 className="font-bold text-yellow-700">
+                          📅 {t.followUp}
+                        </h3>
+
+                        {followUp && (
+                          <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold">
+                            {String(
+                              followUp.status
+                            )
+                              .toLowerCase() ===
+                            "pending"
+                              ? t.pending
+                              : followUp.status}
+                          </span>
+                        )}
+
+                      </div>
 
                       {followUp ? (
 
-                        <div className="mt-3">
+                        <div className="mt-4">
 
-                          <p className="text-gray-700">
+                          {/* SCHEDULED DATE */}
 
-                            <strong>
-                              {t.followUpDate}:
-                            </strong>{" "}
+                          <div className="bg-white rounded-xl p-4 border border-yellow-200">
 
-                            {followUp.date}
+                            <p className="text-gray-500 text-sm">
+                              {t.followUpDate}
+                            </p>
 
-                          </p>
+                            <p className="text-lg font-bold text-gray-800 mt-1">
+                              📅{" "}
+                              {formatFollowUpDate(
+                                followUp.date
+                              )}
+                            </p>
 
-                          <p className="text-gray-600 mt-1">
-                            {followUp.note}
-                          </p>
+                          </div>
 
-                          <span className="inline-block mt-3 bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-semibold">
+                          {/* NOTE */}
 
-                            {followUp.status ===
-                            "Pending"
-                              ? t.pending
-                              : followUp.status}
+                          {followUp.note && (
+                            <p className="text-gray-600 mt-3">
+                              <strong>
+                                Note:
+                              </strong>{" "}
+                              {followUp.note}
+                            </p>
+                          )}
 
-                          </span>
+                          {/* STATUS */}
+
+                          <div className="mt-3">
+
+                            <span
+                              className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                                String(
+                                  followUp.status ||
+                                    ""
+                                )
+                                  .toLowerCase() ===
+                                "pending"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              {String(
+                                followUp.status ||
+                                  ""
+                              )
+                                .toLowerCase() ===
+                              "pending"
+                                ? `🕒 ${t.pending}`
+                                : `✓ ${followUp.status}`}
+                            </span>
+
+                          </div>
 
                         </div>
 
                       ) : (
 
-                        <p className="text-gray-500 mt-3">
-                          {t.noPendingFollowUp}
-                        </p>
+                        <div className="mt-3">
+
+                          <p className="text-gray-500">
+                            {t.noPendingFollowUp}
+                          </p>
+
+                          <p className="text-gray-400 text-sm mt-2">
+                            No pending child follow-up is currently scheduled.
+                          </p>
+
+                        </div>
 
                       )}
 
                     </div>
 
-                    {/* Actions */}
+                    {/* =================================================
+                        ACTIONS
+                    ================================================= */}
 
                     <div className="grid sm:grid-cols-2 gap-3 mt-6">
 
